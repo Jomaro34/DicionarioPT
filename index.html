@@ -6,6 +6,10 @@
   <style>
     body { margin: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; display: flex; justify-content: center; }
     .main-wrapper { width: 100%; max-width: 850px; padding: 20px; text-align: center; }
+
+    /* IMAGEM DE CABEÇALHO */
+    .header-img { display: block; margin: 0 auto 20px auto; max-width: 100%; height: auto; }
+
     #rimador-container { background: #f9f9f9; padding: 25px; border-radius: 12px; border: 1px solid #ddd; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: left; }
     h2 { color: #2c3e50; text-align: center; margin-bottom: 20px; }
 
@@ -31,12 +35,29 @@
     .palavra { display: inline-block; margin: 3px 4px; padding: 3px 10px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; transition: background 0.1s; font-size: 0.95em; }
     .palavra:hover { background: #eaf4fb; }
     .hint { font-size: 0.8em; color: #999; margin-top: 10px; }
+
+    /* RODAPÉ */
+    .site-footer { margin-top: 40px; padding: 30px 20px 20px; text-align: center; border-top: 2px solid #e0e0e0; }
+    .site-footer p { margin: 6px 0; font-size: 0.9em; color: #555; }
+    .site-footer a { color: #2c3e50; text-decoration: none; }
+    .site-footer a:hover { text-decoration: underline; }
+    .site-footer img[width="80"] { border-radius: 4px; display: block; margin: 0 auto 8px auto; }
+
+    .social-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 16px 0 10px; }
+    .social-icon { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; transition: opacity 0.2s, transform 0.2s; }
+    .social-icon:hover { opacity: 0.8; transform: scale(1.1); }
+
+    .footer-note { font-size: 0.8em; color: #999; margin-top: 10px; font-style: italic; }
   </style>
   <script src="rimas.js"></script>
 </head>
 <body>
 
 <div class="main-wrapper">
+
+  <!-- IMAGEM DE CABEÇALHO -->
+  <img src="Dicinario_rimas.png" alt="Dicionário de Rimas" class="header-img" />
+
   <div id="rimador-container">
     <h2>Dicionário de Rimas de Precisão</h2>
 
@@ -74,6 +95,38 @@
 
     <div id="resultadoRimas">Aguardando pesquisa...</div>
   </div>
+
+  <!-- RODAPÉ AUTOR + REDES SOCIAIS -->
+  <footer class="site-footer">
+    <!-- AUTOR -->
+    <p>
+      <a href="https://jomaro34.github.io/Jomaro-Cabrela-Autobiografia/">
+        <img src="JomaroCabrelaPB_LR.jpg" width="80" height="110" alt="Jomaro Cabrela" />
+      </a>
+    </p>
+    <p>
+      <a href="https://jomaro34.github.io/Jomaro-Cabrela/">&copy; Jomaro Cabrela / José Rodrigues</a>
+    </p>
+
+    <!-- SOCIAL -->
+    <div class="social-footer">
+      <a href="https://www.facebook.com/jomarocabrela/"><img src="FaceBook.jpg" class="social-icon" alt="Facebook"></a>
+      <a href="https://www.facebook.com/jomarocabrelaarte/"><img src="FaceBook.jpg" class="social-icon" alt="Facebook Arte"></a>
+      <a href="https://www.instagram.com/jomarocabrela/"><img src="Instagram.jpg" class="social-icon" alt="Instagram"></a>
+      <a href="https://pt.pinterest.com/jcabrela/"><img src="Pinterest.jpg" class="social-icon" alt="Pinterest"></a>
+      <a href="https://www.youtube.com/@jomarocabrela"><img src="OriginalSongsRS.jpg" class="social-icon" alt="YouTube"></a>
+      <a href="https://x.com/JCabrela"><img src="X.jpg" class="social-icon" alt="X / Twitter"></a>
+      <a href="https://jomaro-cabrela-art.blogspot.com/"><img src="blogspot.jpg" class="social-icon" alt="Blogspot"></a>
+      <a href="https://jomaro34.github.io/Dicionario_Rimas/"><img src="Rimas.jpg" class="social-icon" alt="Dicionário de Rimas"></a>
+      <a href="https://jomaro34.github.io/Colectanea-Proverbios-Ditados-Expressoes-Populares/"><img src="ColectaneaProverbios.jpg" class="social-icon" alt="Colectânea de Provérbios"></a>
+      <a href="mailto:jomarocabrela@gmail.com"><img src="Mail_Branco.jpg" class="social-icon" alt="Email"></a>
+    </div>
+
+    <div class="footer-note">
+      Todos os textos apresentados estão escritos em português europeu.
+    </div>
+  </footer>
+
 </div>
 
 <script>
@@ -93,7 +146,6 @@ function limpar(s) {
   return semAcento(s).toLowerCase().replace(/[^a-z]/g, "");
 }
 
-// Normalização fonética do português europeu
 function normFon(s) {
   return limpar(s)
     .replace(/nh/g, "ɲ")
@@ -110,33 +162,6 @@ function normFon(s) {
     .replace(/j/g, "ʒ");
 }
 
-/**
- * Normaliza vogais preservando nasalidade mas igualando timbre.
- * Usado na rima assonante:
- *   ã → N  (nasal aberta)
- *   õ → Õ  (nasal fechada posterior)
- *   ẽ → Ẽ  (nasal fechada anterior)
- *   â,à,á,a → a  (oral aberta)
- *   ê,é,è,e → e  (oral anterior)
- *   î,í,ì,i → i
- *   ô,ó,ò,o → o
- *   û,ú,ù,u → u
- */
-function normVogalAssonante(c) {
-  const lc = c.toLowerCase();
-  if ("ãà".includes(lc)) return "N";   // nasal/aberta — ã e à são distintos mas na assonante agrupamos nasais
-  if (lc === "ã")        return "N";
-  if (lc === "õ")        return "Õ";
-  if (lc === "ê" || lc === "é" || lc === "è" || lc === "e") return "e";
-  if (lc === "â" || lc === "á" || lc === "à" || lc === "a") return "a";
-  if (lc === "ã")        return "N";
-  if (lc === "î" || lc === "í" || lc === "ì" || lc === "i") return "i";
-  if (lc === "ô" || lc === "ó" || lc === "ò" || lc === "o") return "o";
-  if (lc === "û" || lc === "ú" || lc === "ù" || lc === "u") return "u";
-  return lc;
-}
-
-// Mapa explícito para garantir cobertura total
 const MAPA_VOGAL = {
   a:"a", á:"a", à:"a", â:"a", ã:"N",
   e:"e", é:"e", è:"e", ê:"e",
@@ -149,23 +174,15 @@ function vogalNorm(c) {
   return MAPA_VOGAL[c.toLowerCase()] || c.toLowerCase();
 }
 
-/**
- * Devolve o índice da vogal tónica.
- * 1. Acento gráfico explícito → essa vogal é a tónica.
- * 2. Sem acento → regras ortográficas do português.
- */
 function posicaoTonica(p) {
   const s = p.toLowerCase();
 
-  // 1. Percorre da esquerda; a primeira vogal acentuada é a tónica
   for (let i = 0; i < s.length; i++) {
     if (VOGAIS_AC.includes(s[i])) return i;
   }
 
-  // 2. Regras ortográficas sem acento gráfico
   const fim = semAcento(s);
 
-  // Oxítonas: terminam em -r, -l, -z, -im, -um, -ão, -ã, -ões, consoante+s
   if (/[rlz]$/.test(fim) ||
       /(?<![aeiou])s$/.test(fim) ||
       /im$/.test(fim) ||
@@ -178,7 +195,6 @@ function posicaoTonica(p) {
     }
   }
 
-  // Paroxítonas: penúltima vogal
   let v = 0;
   for (let i = s.length - 1; i >= 0; i--) {
     if (eVogal(s[i])) {
@@ -187,7 +203,6 @@ function posicaoTonica(p) {
     }
   }
 
-  // Fallback: última vogal
   for (let i = s.length - 1; i >= 0; i--) {
     if (eVogal(s[i])) return i;
   }
@@ -203,7 +218,6 @@ function assinaturaRima(palavra, modo, nLetras) {
   const desde = p.substring(pos);
 
   if (modo === "assonante") {
-    // Extrai apenas as vogais desde a tónica, preservando nasalidade
     return desde.split("").filter(eVogal).map(vogalNorm).join("");
   }
 
@@ -212,7 +226,6 @@ function assinaturaRima(palavra, modo, nLetras) {
     return conAntes + normFon(desde);
   }
 
-  // Perfeita: normalização fonética desde a tónica
   return normFon(desde);
 }
 
