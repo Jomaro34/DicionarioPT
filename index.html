@@ -1,148 +1,114 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-PT">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dicionário PT teste — Pesquisa</title>
+<title>Dicionário de Rimas Avançado</title>
 <style>
-  body { 
-    font-family: Arial, sans-serif; 
-    margin: 0; 
-    padding: 20px; 
-    background: #f5f6fa; 
-  }
-  h1 { margin-top: 0; }
-  .box { 
-    background: white; 
-    padding: 16px; 
-    border-radius: 10px; 
-    max-width: 800px; 
-    margin: auto; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
-  }
-  #resultado { 
-    margin-top: 20px; 
-    padding: 10px; 
-    background: #fff; 
-    border-radius: 8px; 
-    min-height: 60px; 
-    border: 1px solid #ddd; 
-  }
-  input { 
-    width: 100%; 
-    padding: 10px; 
-    font-size: 16px; 
-    border-radius: 8px; 
-    border: 1px solid #ccc; 
-    box-sizing: border-box;
-  }
-  .item { 
-    margin-bottom: 12px; 
-    padding-bottom: 12px;
-    border-bottom: 1px solid #eee;
-  }
-  .item:last-child {
-    border-bottom: none;
-  }
-  .categoria { 
-    font-weight: bold; 
-    color: #2c3e50; 
-    margin-bottom: 4px;
-  }
-  .definicao {
-    color: #333;
-    line-height: 1.5;
-    margin-bottom: 4px;
-  }
-  .contexto { 
-    color: #7f8c8d; 
-    font-size: 14px;
-    font-style: italic;
-  }
-  .loading {
-    color: #3498db;
-    font-style: italic;
-  }
-  .error {
-    color: #e74c3c;
-    padding: 10px;
-    background: #fadbd8;
-    border-radius: 6px;
-  }
+body { margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#fff; display:flex; justify-content:center; }
+.main-wrapper { width:100%; max-width:800px; padding:15px; text-align:center; }
+#rimador-container { background:#f9f9f9; padding:25px; border-radius:8px; border:1px solid #eee; box-shadow:0 2px 10px rgba(0,0,0,0.05); text-align:left; }
+h2 { text-align:center; color:#2c3e50; }
+label { display:block; font-weight:bold; margin-top:15px; }
+input, select, button { width:100%; padding:12px; margin:8px 0; border-radius:6px; border:1px solid #ccc; font-size:16px; }
+button { background:#3498db; color:white; cursor:pointer; font-weight:bold; transition:0.3s; }
+button:hover { background:#2980b9; }
+#resultadoRimas { margin-top:20px; padding:15px; background:#fff; border-left:5px solid #3498db; min-height:40px; word-wrap:break-word; }
+.rima-tag { margin:3px; padding:3px 6px; cursor:pointer; display:inline-block; background:#eee; border-radius:4px; transition:0.2s; }
+.rima-tag:hover { background:#3498db; color:white; }
 </style>
 </head>
 <body>
-<div class="box">
-  <h1>📘 Dicionário PT teste</h1>
-  <p>Escreve uma palavra para pesquisar o significado.</p>
-  <input id="campoPesquisa" placeholder="Pesquisar palavra..." oninput="pesquisar()" />
-  <div id="resultado">A carregar dicionário...</div>
+<div class="main-wrapper">
+  <div id="rimador-container">
+    <h2>Procura de Rimas</h2>
+    <label>Palavra:</label>
+    <input id="palavra" placeholder="Ex: coração">
+    <label>Tipo de rima:</label>
+    <select id="tipoRima">
+      <option value="terminacao">Por terminação literal</option>
+      <option value="fonetica" selected>Por fonética avançada</option>
+    </select>
+    <button onclick="procurarRimas()">Procurar Rimas</button>
+    <div id="resultadoRimas">As rimas aparecerão aqui...</div>
+  </div>
 </div>
-<script>
-let dicionario = {};
 
-// ===============================
-// Carrega o dicionário do ficheiro JSON
-// ===============================
-async function carregarDicionario() {
-  const out = document.getElementById('resultado');
-  try {
-    const resposta = await fetch('dicionario.json');
-    if (!resposta.ok) {
-      throw new Error('Não foi possível carregar o dicionário');
-    }
-    dicionario = await resposta.json();
-    out.innerHTML = 'Nenhuma pesquisa ainda.';
-    console.log('Dicionário carregado com sucesso!', Object.keys(dicionario).length, 'palavras');
-  } catch (erro) {
-    console.error('Erro ao carregar dicionário:', erro);
-    out.innerHTML = `<div class="error">
-      <strong>Erro ao carregar o dicionário!</strong><br>
-      Certifica-te que o ficheiro <code>dicionario.json</code> está na mesma pasta que este HTML.
-    </div>`;
-  }
+<script>
+// =====================
+// Carregar JSON de palavras
+// =====================
+let base_palavras = [];
+
+fetch('palavras_foneticas.json')
+.then(resp => resp.json())
+.then(data => { base_palavras = data; })
+.catch(err => console.error("Erro ao carregar JSON:", err));
+
+// =====================
+// Normalização simples
+// =====================
+function normalizar(p){
+  return p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ç/g,'s');
 }
 
-// ===============================
-// Função de pesquisa
-// ===============================
-function pesquisar() {
-  const termo = document.getElementById('campoPesquisa').value.trim();
-  const out = document.getElementById('resultado');
-  
-  if (!termo) { 
-    out.innerHTML = 'Nenhuma pesquisa ainda.'; 
-    return; 
-  }
-  
-  // Procura a palavra (case-insensitive)
-  const chave = Object.keys(dicionario).find(k => k.toLowerCase() === termo.toLowerCase());
-  
-  if (!chave) {
-    out.innerHTML = `<p><b>"${termo}"</b> não encontrado no dicionário.</p>`;
+// =====================
+// Score fonético
+function scoreRima(input, target){
+  const f_input = input.silaba_final;
+  const f_target = target.silaba_final;
+  if(f_input===f_target) return 3; // perfeita
+  if(f_input.slice(-2)===f_target.slice(-2)) return 2; // próxima
+  if(f_input.slice(-1)===f_target.slice(-1)) return 1; // fraca
+  return 0;
+}
+
+// =====================
+// Procurar rimas
+function procurarRimas(){
+  const palavraInput = document.getElementById('palavra').value.trim();
+  const tipo = document.getElementById('tipoRima').value;
+  const div = document.getElementById('resultadoRimas');
+
+  if(!palavraInput){ div.innerHTML = "Escreve uma palavra."; return; }
+
+  // Encontrar entrada no JSON
+  let inputEntry = base_palavras.find(p => normalizar(p.palavra)===normalizar(palavraInput));
+  if(!inputEntry){
+    div.innerHTML = "Palavra não encontrada na base.";
     return;
   }
-  
-  const sentidos = dicionario[chave];
-  let html = `<h3>${chave}</h3>`;
-  
-  sentidos.forEach(s => {
-    html += `<div class='item'>`;
-    if (s.categoria) {
-      html += `<div class='categoria'>${s.categoria}</div>`;
+
+  let resultados = [];
+  base_palavras.forEach(p=>{
+    if(p.palavra===inputEntry.palavra) return;
+    let score=0;
+    if(tipo==="terminacao"){
+      const tam=3;
+      if(normalizar(p.palavra).slice(-tam)===normalizar(inputEntry.palavra).slice(-tam)) score=3;
+    } else {
+      score = scoreRima(inputEntry,p);
     }
-    html += `<div class='definicao'>${s.definicao}</div>`;
-    if (s.contexto) {
-      html += `<div class='contexto'>${s.contexto}</div>`;
-    }
-    html += `</div>`;
+    if(score>0) resultados.push({palavra:p.palavra,score});
   });
-  
-  out.innerHTML = html;
+
+  resultados.sort((a,b)=>b.score-a.score);
+  resultados = resultados.slice(0,150);
+
+  if(resultados.length===0){ div.innerHTML="Sem rimas."; return; }
+
+  div.innerHTML = resultados.map(r=>{
+    let style="";
+    if(r.score===3) style="font-weight:bold; text-decoration:underline;";
+    else if(r.score===2) style="font-weight:bold;";
+    return `<span class="rima-tag" style="${style}" onclick="clicar('${r.palavra}')">${r.palavra}</span>`;
+  }).join(" ");
 }
 
-// Carrega o dicionário quando a página carregar
-carregarDicionario();
+function clicar(p){
+  document.getElementById('palavra').value = p;
+  procurarRimas();
+}
 </script>
 </body>
 </html>
