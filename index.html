@@ -1,114 +1,198 @@
 <!DOCTYPE html>
+
 <html lang="pt-PT">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dicionário de Rimas Avançado</title>
+<title>Dicionário de Rimas PRO+</title>
+
 <style>
-body { margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#fff; display:flex; justify-content:center; }
-.main-wrapper { width:100%; max-width:800px; padding:15px; text-align:center; }
-#rimador-container { background:#f9f9f9; padding:25px; border-radius:8px; border:1px solid #eee; box-shadow:0 2px 10px rgba(0,0,0,0.05); text-align:left; }
-h2 { text-align:center; color:#2c3e50; }
-label { display:block; font-weight:bold; margin-top:15px; }
-input, select, button { width:100%; padding:12px; margin:8px 0; border-radius:6px; border:1px solid #ccc; font-size:16px; }
-button { background:#3498db; color:white; cursor:pointer; font-weight:bold; transition:0.3s; }
-button:hover { background:#2980b9; }
-#resultadoRimas { margin-top:20px; padding:15px; background:#fff; border-left:5px solid #3498db; min-height:40px; word-wrap:break-word; }
-.rima-tag { margin:3px; padding:3px 6px; cursor:pointer; display:inline-block; background:#eee; border-radius:4px; transition:0.2s; }
-.rima-tag:hover { background:#3498db; color:white; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f6f8;
+  display: flex;
+  justify-content: center;
+}
+
+.main { max-width: 900px; width: 100%; padding: 20px; }
+
+.box {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+input, select, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+button {
+  background: linear-gradient(135deg, #3498db, #6dd5fa);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.tag {
+  display: inline-block;
+  padding: 6px 10px;
+  margin: 4px;
+  border-radius: 6px;
+  background: #ecf0f1;
+  cursor: pointer;
+}
+
+.tag:hover { background: #3498db; color: white; }
+
+.group-title {
+  margin-top: 15px;
+  font-weight: bold;
+  color: #2c3e50;
+}
 </style>
+
+<script src="rimas.js"></script>
+
 </head>
+
 <body>
-<div class="main-wrapper">
-  <div id="rimador-container">
-    <h2>Procura de Rimas</h2>
-    <label>Palavra:</label>
-    <input id="palavra" placeholder="Ex: coração">
-    <label>Tipo de rima:</label>
-    <select id="tipoRima">
-      <option value="terminacao">Por terminação literal</option>
-      <option value="fonetica" selected>Por fonética avançada</option>
-    </select>
-    <button onclick="procurarRimas()">Procurar Rimas</button>
-    <div id="resultadoRimas">As rimas aparecerão aqui...</div>
-  </div>
+
+<div class="main">
+<div class="box">
+
+<h2>🎵 Dicionário de Rimas PRO+</h2>
+
+<input id="palavra" placeholder="Ex: coração">
+
+<select id="modo">
+<option value="fonetico">Rima fonética</option>
+<option value="terminacao">Por terminação</option>
+</select>
+
+<select id="tamanho">
+<option value="2">2</option>
+<option value="3" selected>3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+
+<button onclick="buscar()">Procurar</button>
+
+<div id="info"></div>
+<div id="res"></div>
+
+</div>
 </div>
 
 <script>
-// =====================
-// Carregar JSON de palavras
-// =====================
-let base_palavras = [];
+let palavras = [];
 
-fetch('palavras_foneticas.json')
-.then(resp => resp.json())
-.then(data => { base_palavras = data; })
-.catch(err => console.error("Erro ao carregar JSON:", err));
-
-// =====================
-// Normalização simples
-// =====================
-function normalizar(p){
-  return p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ç/g,'s');
+function normalizar(txt) {
+  return txt.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-// =====================
-// Score fonético
-function scoreRima(input, target){
-  const f_input = input.silaba_final;
-  const f_target = target.silaba_final;
-  if(f_input===f_target) return 3; // perfeita
-  if(f_input.slice(-2)===f_target.slice(-2)) return 2; // próxima
-  if(f_input.slice(-1)===f_target.slice(-1)) return 1; // fraca
-  return 0;
+function inicializar() {
+  palavras = (typeof base_palavras !== "undefined" ? base_palavras : [
+    "coração","paixão","emoção","canção","razão","visão",
+    "andar","cantar","amar","altar","lugar","brilhar"
+  ]).map(p => p.toLowerCase());
 }
 
-// =====================
-// Procurar rimas
-function procurarRimas(){
-  const palavraInput = document.getElementById('palavra').value.trim();
-  const tipo = document.getElementById('tipoRima').value;
-  const div = document.getElementById('resultadoRimas');
+// 🔊 detectar sílaba tónica (heurística PT)
+function tipoTonica(p) {
+  if (/[áéíóúâêôãõ]$/.test(p)) return "oxítona";
+  if (p.length <= 3) return "oxítona";
+  if (/[aeiou]s$/.test(p)) return "paroxítona";
+  return "paroxítona";
+}
 
-  if(!palavraInput){ div.innerHTML = "Escreve uma palavra."; return; }
+// 🔊 transformação fonética simplificada
+function fonetizar(p) {
+  p = normalizar(p);
 
-  // Encontrar entrada no JSON
-  let inputEntry = base_palavras.find(p => normalizar(p.palavra)===normalizar(palavraInput));
-  if(!inputEntry){
-    div.innerHTML = "Palavra não encontrada na base.";
-    return;
-  }
+  return p
+    .replace(/cao/g,"sao")
+    .replace(/ção/g,"sao")
+    .replace(/lh/g,"li")
+    .replace(/nh/g,"ni");
+}
 
-  let resultados = [];
-  base_palavras.forEach(p=>{
-    if(p.palavra===inputEntry.palavra) return;
-    let score=0;
-    if(tipo==="terminacao"){
-      const tam=3;
-      if(normalizar(p.palavra).slice(-tam)===normalizar(inputEntry.palavra).slice(-tam)) score=3;
-    } else {
-      score = scoreRima(inputEntry,p);
+// extrair parte da rima
+function parteRima(p) {
+  p = fonetizar(p);
+  const vogais = "aeiou";
+  let i = p.length - 1;
+
+  while (i >= 0 && !vogais.includes(p[i])) i--;
+  return p.slice(i - 1);
+}
+
+function buscar() {
+  const input = document.getElementById("palavra").value.toLowerCase().trim();
+  const modo = document.getElementById("modo").value;
+  const tam = parseInt(document.getElementById("tamanho").value);
+
+  const res = document.getElementById("res");
+  const info = document.getElementById("info");
+
+  if (!input) return res.innerHTML = "Escreve uma palavra.";
+
+  const base = normalizar(input);
+  const tonica = tipoTonica(input);
+
+  info.innerHTML = `Sílaba tónica: <b>${tonica}</b>`;
+
+  let perfeitas = [];
+  let aproximadas = [];
+
+  palavras.forEach(p => {
+    if (p === base) return;
+
+    if (modo === "terminacao") {
+      const suf = base.slice(-tam);
+      if (p.endsWith(suf)) perfeitas.push(p);
+      return;
     }
-    if(score>0) resultados.push({palavra:p.palavra,score});
+
+    const r1 = parteRima(base);
+    const r2 = parteRima(p);
+
+    if (r1 === r2) {
+      perfeitas.push(p);
+    } else if (r2.endsWith(r1.slice(-2))) {
+      aproximadas.push(p);
+    }
   });
 
-  resultados.sort((a,b)=>b.score-a.score);
-  resultados = resultados.slice(0,150);
+  let html = "";
 
-  if(resultados.length===0){ div.innerHTML="Sem rimas."; return; }
+  if (perfeitas.length) {
+    html += `<div class="group-title">Rimas perfeitas (${perfeitas.length})</div>`;
+    html += perfeitas.map(p => `<span class="tag" onclick="clicar('${p}')">${p}</span>`).join("");
+  }
 
-  div.innerHTML = resultados.map(r=>{
-    let style="";
-    if(r.score===3) style="font-weight:bold; text-decoration:underline;";
-    else if(r.score===2) style="font-weight:bold;";
-    return `<span class="rima-tag" style="${style}" onclick="clicar('${r.palavra}')">${r.palavra}</span>`;
-  }).join(" ");
+  if (aproximadas.length) {
+    html += `<div class="group-title">Rimas aproximadas (${aproximadas.length})</div>`;
+    html += aproximadas.map(p => `<span class="tag" onclick="clicar('${p}')">${p}</span>`).join("");
+  }
+
+  if (!html) html = "Sem rimas.";
+
+  res.innerHTML = html;
 }
 
-function clicar(p){
-  document.getElementById('palavra').value = p;
-  procurarRimas();
+function clicar(p) {
+  document.getElementById("palavra").value = p;
+  buscar();
 }
+
+inicializar();
 </script>
+
 </body>
 </html>
