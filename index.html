@@ -3,1167 +3,636 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MILITARY SDR COCKPIT — TACTICAL RADIO INTERCEPT</title>
+<title>MILITARY SDR COCKPIT</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=VT323&display=swap');
-
-  :root {
-    --green: #00ff41;
-    --green-dim: #00b32d;
-    --green-dark: #003a0e;
-    --amber: #ffb300;
-    --red: #ff2d2d;
-    --cyan: #00e5ff;
-    --bg: #020a04;
-    --panel: #060f07;
-    --panel2: #0a180c;
-    --border: #00ff4133;
-    --border-bright: #00ff4166;
-    --scanline: rgba(0,255,65,0.03);
-  }
-
-  * { margin:0; padding:0; box-sizing:border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--green);
-    font-family: 'Share Tech Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-    cursor: crosshair;
-  }
-
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
-    pointer-events: none;
-    z-index: 1000;
-  }
-
-  .crt-flicker {
-    animation: flicker 8s infinite;
-  }
-  @keyframes flicker {
-    0%,98%,100%{opacity:1}
-    99%{opacity:0.96}
-    99.5%{opacity:0.99}
-  }
-
-  /* ── TOP BAR ── */
-  .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
-    font-family: 'Orbitron', sans-serif;
-    font-size: 10px;
-    letter-spacing: 2px;
-  }
-  .topbar-title { color: var(--green); font-weight: 900; font-size: 13px; }
-  .topbar-status { display: flex; gap: 20px; }
-  .status-dot { display: flex; align-items: center; gap: 6px; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; }
-  .dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
-  .dot.amber { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 1.4s infinite; }
-  .dot.red { background: var(--red); box-shadow: 0 0 8px var(--red); }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-  /* ── MAIN GRID ── */
-  .main {
-    display: grid;
-    grid-template-columns: 260px 1fr 240px;
-    grid-template-rows: auto 1fr auto;
-    height: calc(100vh - 36px);
-    gap: 1px;
-    background: var(--border);
-  }
-
-  .panel {
-    background: var(--panel);
-    padding: 10px;
-    overflow: hidden;
-  }
-
-  .panel-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: var(--green-dim);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 6px;
-    margin-bottom: 10px;
-  }
-
-  /* ── SPECTRUM / WATERFALL ── */
-  .spectrum-panel {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    background: var(--bg);
-  }
-
-  #spectrum-canvas {
-    width: 100%;
-    height: 160px;
-    display: block;
-  }
-  #waterfall-canvas {
-    width: 100%;
-    flex: 1;
-    display: block;
-  }
-
-  /* ── FREQUENCY DISPLAY ── */
-  .freq-big {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 38px;
-    font-weight: 900;
-    color: var(--green);
-    text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-dim);
-    letter-spacing: 2px;
-    line-height: 1;
-  }
-  .freq-unit {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
-    color: var(--green-dim);
-    letter-spacing: 4px;
-    margin-top: 4px;
-  }
-  .freq-sub {
-    font-size: 11px;
-    color: var(--green-dim);
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .freq-sub span { display: flex; justify-content: space-between; }
-  .val { color: var(--green); }
-
-  /* ── KNOB ── */
-  .knob-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    margin: 14px 0;
-  }
-  .knob-container {
-    width: 110px; height: 110px;
-    position: relative;
-    cursor: grab;
-    user-select: none;
-  }
-  .knob-container:active { cursor: grabbing; }
-  #main-knob {
-    width: 100%; height: 100%;
-  }
-  .knob-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--green-dim);
-    text-align: center;
-  }
-  .knob-sub-label {
-    font-size: 9px;
-    color: #004010;
-    text-align: center;
-  }
-
-  /* ── BUTTONS ── */
-  .btn-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    margin-top: 10px;
-  }
-  .btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--green-dim);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
-    padding: 7px 6px;
-    cursor: pointer;
-    letter-spacing: 1px;
-    transition: all 0.1s;
-    text-align: center;
-  }
-  .btn:hover { border-color: var(--green); color: var(--green); background: #00ff4110; }
-  .btn.active { background: #00ff4122; border-color: var(--green); color: var(--green); box-shadow: 0 0 10px #00ff4140; }
-  .btn.danger { color: var(--red); border-color: #ff2d2d44; }
-  .btn.danger:hover { background: #ff2d2d15; border-color: var(--red); }
-  .btn.amber-btn { color: var(--amber); border-color: #ffb30044; }
-  .btn.amber-btn.active { background: #ffb30022; border-color: var(--amber); box-shadow: 0 0 10px #ffb30040; }
-
-  /* ── BAND SELECTOR ── */
-  .band-btns {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 8px;
-  }
-  .band-btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--green-dim);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
-    padding: 5px 8px;
-    cursor: pointer;
-    letter-spacing: 1px;
-  }
-  .band-btn:hover, .band-btn.active { background: #00ff4115; border-color: var(--green); color: var(--green); }
-
-  /* ── SIGNAL METER ── */
-  .meter-row { margin-bottom: 12px; }
-  .meter-label { font-size: 10px; color: var(--green-dim); margin-bottom: 4px; letter-spacing: 1px; display: flex; justify-content: space-between; }
-  .meter-bar {
-    height: 10px;
-    background: #001a05;
-    border: 1px solid var(--border);
-    position: relative;
-    overflow: hidden;
-  }
-  .meter-fill {
-    height: 100%;
-    transition: width 0.15s;
-    position: relative;
-  }
-  .meter-fill.signal { background: linear-gradient(90deg, #004a10, #00b32d, #00ff41); }
-  .meter-fill.snr { background: linear-gradient(90deg, #003a6b, #0088cc, #00e5ff); }
-  .meter-fill.quality { background: linear-gradient(90deg, #4a3000, #b37700, #ffb300); }
-  .s-units { display: flex; justify-content: space-between; font-size: 8px; color: #004010; margin-top: 2px; }
-
-  /* ── STATIONS LIST ── */
-  .station-list { overflow-y: auto; max-height: 200px; }
-  .station-list::-webkit-scrollbar { width: 4px; }
-  .station-list::-webkit-scrollbar-track { background: var(--bg); }
-  .station-list::-webkit-scrollbar-thumb { background: var(--border-bright); }
-
-  .station-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 6px;
-    border-bottom: 1px solid #00ff410a;
-    cursor: pointer;
-    font-size: 10px;
-    transition: background 0.1s;
-  }
-  .station-item:hover { background: #00ff4110; }
-  .station-item.active { background: #00ff4118; color: var(--green); }
-  .station-name { color: var(--green-dim); }
-  .station-item.active .station-name { color: var(--green); }
-  .station-freq { color: var(--green); font-size: 9px; }
-  .station-type { font-size: 8px; color: #004010; border: 1px solid #00ff4120; padding: 1px 4px; }
-
-  /* ── LOG / INTERCEPTED ── */
-  .log-area {
-    font-family: 'VT323', monospace;
-    font-size: 14px;
-    color: var(--green-dim);
-    overflow-y: auto;
-    max-height: 160px;
-    line-height: 1.4;
-  }
-  .log-area::-webkit-scrollbar { width: 3px; }
-  .log-area::-webkit-scrollbar-thumb { background: var(--border-bright); }
-  .log-line { padding: 1px 0; }
-  .log-line.event { color: var(--amber); }
-  .log-line.alert { color: var(--red); }
-  .log-line.signal { color: var(--green); }
-
-  /* ── AUDIO CONTROLS ── */
-  .vol-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .vol-label { font-size: 10px; color: var(--green-dim); width: 30px; }
-  input[type=range].sdr-range {
-    flex: 1;
-    -webkit-appearance: none;
-    height: 4px;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    outline: none;
-    cursor: pointer;
-  }
-  input[type=range].sdr-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px; height: 18px;
-    background: var(--green);
-    box-shadow: 0 0 8px var(--green);
-    cursor: pointer;
-  }
-  .vol-val { font-size: 10px; color: var(--green); width: 28px; text-align: right; }
-
-  /* ── MODE SELECTOR ── */
-  .mode-wrap { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-  .mode-btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--green-dim);
-    font-family: 'Orbitron', sans-serif;
-    font-size: 9px;
-    padding: 5px 8px;
-    cursor: pointer;
-    letter-spacing: 1px;
-  }
-  .mode-btn.active { background: #00ff4122; border-color: var(--green); color: var(--green); }
-
-  /* ── BOTTOM STATUS ── */
-  .bottom-bar {
-    grid-column: 1 / 4;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 16px;
-    font-size: 10px;
-    color: var(--green-dim);
-    letter-spacing: 1px;
-  }
-  .bottom-bar span { display: flex; gap: 6px; align-items: center; }
-  .blink { animation: blink 1s step-end infinite; }
-  @keyframes blink { 50%{opacity:0} }
-
-  /* ── AUDIO VISUAL ── */
-  #audio-canvas {
-    width: 100%;
-    height: 50px;
-    display: block;
-    margin-top: 8px;
-  }
-
-  /* ── SCROLL HIDDEN ── */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); }
-
-  .sep { border-top: 1px solid var(--border); margin: 10px 0; }
-
-  .coord-display {
-    font-size: 10px;
-    color: var(--green-dim);
-    font-family: 'Share Tech Mono';
-    line-height: 1.7;
-  }
-  .coord-display .hl { color: var(--green); }
-
-  /* scanner animation */
-  @keyframes scan-anim { from{transform:scaleX(0)} to{transform:scaleX(1)} }
-  .scan-bar {
-    height: 2px;
-    background: var(--cyan);
-    box-shadow: 0 0 10px var(--cyan);
-    transform-origin: left;
-    animation: scan-anim 2s linear infinite;
-    margin: 4px 0;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .scan-bar.visible { opacity: 1; }
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=VT323&display=swap');
+:root{--g:#00ff41;--gd:#00b32d;--gb:#003a0e;--am:#ffb300;--rd:#ff2d2d;--cy:#00e5ff;--bg:#020a04;--p:#060f07;--p2:#0a180c;--b:#00ff4133;--bb:#00ff4166}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--g);font-family:'Share Tech Mono',monospace;height:100vh;overflow:hidden;cursor:crosshair}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,.025) 2px,rgba(0,255,65,.025) 4px);pointer-events:none;z-index:9999}
+.top{display:flex;align-items:center;justify-content:space-between;padding:5px 14px;border-bottom:1px solid var(--b);background:var(--p);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;height:32px}
+.top-t{color:var(--g);font-weight:900;font-size:12px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 2s infinite}
+.dg{background:var(--g);box-shadow:0 0 8px var(--g)}
+.da{background:var(--am);box-shadow:0 0 8px var(--am);animation-duration:1.3s}
+.dr{background:var(--rd);box-shadow:0 0 6px var(--rd);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.main{display:grid;grid-template-columns:230px 1fr 220px;height:calc(100vh - 64px)}
+.panel{background:var(--p);border-right:1px solid var(--b);padding:8px;overflow-y:auto;display:flex;flex-direction:column;gap:0}
+.panel:last-child{border-right:none;border-left:1px solid var(--b)}
+.pl{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;color:var(--gd);border-bottom:1px solid var(--b);padding-bottom:5px;margin-bottom:8px;margin-top:6px}
+.pl:first-child{margin-top:0}
+.sep{border-top:1px solid var(--b);margin:8px 0}
+.fbig{font-family:'Orbitron',sans-serif;font-size:32px;font-weight:900;color:var(--g);text-shadow:0 0 20px var(--g),0 0 40px var(--gd);letter-spacing:1px;line-height:1}
+.funit{font-size:11px;color:var(--gd);letter-spacing:4px;margin-top:3px}
+.fsub{font-size:10px;color:var(--gd);display:flex;flex-direction:column;gap:3px;margin-top:8px}
+.fsub span{display:flex;justify-content:space-between}
+.val{color:var(--g)}
+.knob-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0}
+.knob-c{width:100px;height:100px;position:relative;cursor:grab;user-select:none}
+.knob-c:active{cursor:grabbing}
+.bgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px}
+.btn{background:var(--p2);border:1px solid var(--b);color:var(--gd);font-family:'Share Tech Mono',monospace;font-size:10px;padding:6px 5px;cursor:pointer;text-align:center;transition:all .1s;letter-spacing:.5px}
+.btn:hover{border-color:var(--g);color:var(--g);background:#00ff4110}
+.btn.on{background:#00ff4120;border-color:var(--g);color:var(--g);box-shadow:0 0 8px #00ff4130}
+.btn.am{color:var(--am);border-color:#ffb30033}
+.btn.am.on{background:#ffb30020;border-color:var(--am);box-shadow:0 0 8px #ffb30030}
+.btn.rd{color:var(--rd);border-color:#ff2d2d33}
+.btn.rd:hover{background:#ff2d2d10;border-color:var(--rd)}
+.bands{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.bband{background:var(--p2);border:1px solid var(--b);color:var(--gd);font-family:'Share Tech Mono',monospace;font-size:9px;padding:4px 7px;cursor:pointer}
+.bband:hover,.bband.on{background:#00ff4110;border-color:var(--g);color:var(--g)}
+.center{background:#000;display:flex;flex-direction:column;border-left:1px solid var(--b);border-right:1px solid var(--b)}
+.clabel{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;color:var(--gd);padding:5px 10px;border-bottom:1px solid var(--b);background:var(--p);display:flex;justify-content:space-between;align-items:center}
+.mrow{margin-bottom:8px}
+.mlabel{font-size:9px;color:var(--gd);margin-bottom:3px;display:flex;justify-content:space-between}
+.mbar{height:9px;background:#001a05;border:1px solid var(--b);overflow:hidden}
+.mfill{height:100%;transition:width .12s}
+.ms{background:linear-gradient(90deg,#004a10,#00b32d,#00ff41)}
+.mn{background:linear-gradient(90deg,#003a6b,#0088cc,#00e5ff)}
+.slist{overflow-y:auto;flex:1;min-height:0}
+.slist::-webkit-scrollbar{width:3px}
+.slist::-webkit-scrollbar-thumb{background:var(--bb)}
+.si{display:flex;justify-content:space-between;align-items:center;padding:5px 6px;border-bottom:1px solid #00ff4108;cursor:pointer;font-size:10px;gap:6px}
+.si:hover{background:#00ff4110}
+.si.on{background:#00ff4118;color:var(--g)}
+.sn{color:var(--gd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.si.on .sn{color:var(--g)}
+.sf{color:var(--g);font-size:9px;white-space:nowrap}
+.st{font-size:8px;color:#004010;border:1px solid #00ff4118;padding:1px 3px;white-space:nowrap}
+.log{font-family:'VT323',monospace;font-size:13px;color:var(--gd);overflow-y:auto;max-height:130px;flex-shrink:0}
+.log::-webkit-scrollbar{width:3px}
+.log::-webkit-scrollbar-thumb{background:var(--bb)}
+.ll{padding:1px 0}
+.le{color:var(--am)}.la{color:var(--rd)}.ls{color:var(--g)}
+.vrow{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.vlbl{font-size:9px;color:var(--gd);width:28px}
+input[type=range].sr{flex:1;-webkit-appearance:none;height:3px;background:var(--p2);border:1px solid var(--b);outline:none;cursor:pointer}
+input[type=range].sr::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:16px;background:var(--g);box-shadow:0 0 6px var(--g);cursor:pointer}
+.vv{font-size:10px;color:var(--g);width:26px;text-align:right}
+.nowplay{background:var(--p2);border:1px solid var(--b);padding:8px;margin-bottom:8px}
+.np-name{font-size:12px;color:var(--g);margin-bottom:2px;min-height:16px;word-break:break-all;text-shadow:0 0 10px var(--g)}
+.np-sub{font-size:9px;color:var(--gd)}
+@keyframes blink{50%{opacity:0}}
+.blink{animation:blink .7s step-end infinite}
+.modes{display:flex;gap:4px;flex-wrap:wrap}
+.mbtn{background:var(--p2);border:1px solid var(--b);color:var(--gd);font-family:'Orbitron',sans-serif;font-size:8px;padding:4px 6px;cursor:pointer;letter-spacing:1px}
+.mbtn.on{background:#00ff4118;border-color:var(--g);color:var(--g)}
+.sys{font-size:10px;color:var(--gd);line-height:1.8}
+.sys .hl{color:var(--g)}
+.scan-bar{height:2px;background:var(--cy);box-shadow:0 0 8px var(--cy);transform-origin:left;opacity:0;transition:opacity .3s;margin:4px 0}
+@keyframes scan{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.scan-bar.on{opacity:1;animation:scan 1.8s linear infinite}
+.bot{height:32px;background:var(--p);border-top:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:9px;color:var(--gd);letter-spacing:1px;grid-column:1/4}
 </style>
 </head>
-<body class="crt-flicker">
+<body>
 
-<!-- TOP BAR -->
-<div class="topbar">
-  <div class="topbar-title">◈ TACTICAL SDR INTERCEPT STATION — MKII</div>
-  <div class="topbar-status">
-    <div class="status-dot"><div class="dot green"></div> RX ACTIVE</div>
-    <div class="status-dot"><div class="dot amber"></div> SCAN MODE</div>
-    <div class="status-dot"><div class="dot red"></div> ENCRYPT OFF</div>
-    <div id="clock" style="font-family:'Orbitron';font-size:11px;color:var(--green)">00:00:00Z</div>
+<div class="top">
+  <div class="top-t">◈ TACTICAL SDR INTERCEPT — MKII</div>
+  <div style="display:flex;gap:16px;align-items:center">
+    <span><span class="dot dg"></span>RX</span>
+    <span><span class="dot da"></span>NET</span>
+    <span><span class="dot dr" id="dot-play"></span>AUDIO</span>
+    <span id="clock" style="font-family:Orbitron;font-size:11px;color:var(--g)">00:00:00Z</span>
   </div>
 </div>
 
 <div class="main">
 
-  <!-- ── LEFT PANEL ── -->
-  <div class="panel" style="grid-row:1/3; overflow-y:auto; display:flex; flex-direction:column; gap:0;">
-
-    <div class="panel-label">◈ FREQUENCY CONTROL</div>
-
-    <!-- Big freq display -->
-    <div style="margin-bottom:10px;">
-      <div class="freq-big" id="freq-display">098.700</div>
-      <div class="freq-unit">M H Z</div>
+  <!-- LEFT PANEL -->
+  <div class="panel">
+    <div class="pl">◈ FREQUENCY</div>
+    <div class="fbig" id="fdisplay">098.700</div>
+    <div class="funit">M H Z</div>
+    <div class="fsub">
+      <span><span>BAND</span><span class="val" id="bdisplay">FM</span></span>
+      <span><span>STEP</span><span class="val" id="sdisplay">100 kHz</span></span>
+      <span><span>MODE</span><span class="val" id="mdisplay">WFM</span></span>
     </div>
-
-    <div class="freq-sub">
-      <span><span>BAND</span><span class="val" id="band-display">FM BROADCAST</span></span>
-      <span><span>STEP</span><span class="val" id="step-display">100 kHz</span></span>
-      <span><span>MODE</span><span class="val" id="mode-display">WFM</span></span>
-    </div>
-
     <div class="sep"></div>
-
-    <!-- KNOB -->
+    <div class="pl">◈ TUNING ENCODER</div>
     <div class="knob-wrap">
-      <div class="knob-label">TUNING ENCODER</div>
-      <div class="knob-container" id="knob-container">
-        <canvas id="main-knob" width="110" height="110"></canvas>
+      <div class="knob-c" id="knob-c"><canvas id="knob" width="100" height="100"></canvas></div>
+      <div style="font-size:8px;color:#004010;letter-spacing:2px">DRAG · SCROLL</div>
+    </div>
+    <div class="sep"></div>
+    <div class="pl">◈ STEP</div>
+    <div class="bgrid">
+      <div class="btn" onclick="setStep(1,this)">1 kHz</div>
+      <div class="btn" onclick="setStep(5,this)">5 kHz</div>
+      <div class="btn on" onclick="setStep(100,this)">100 kHz</div>
+      <div class="btn" onclick="setStep(1000,this)">1 MHz</div>
+    </div>
+    <div class="sep"></div>
+    <div class="pl">◈ BAND / GENRE</div>
+    <div class="bands">
+      <div class="bband on" onclick="setBand('FM',this,'WFM')">FM</div>
+      <div class="bband" onclick="setBand('AM',this,'AM')">AM</div>
+      <div class="bband" onclick="setBand('SW',this,'USB')">SW</div>
+      <div class="bband" onclick="setBand('JAZZ',this,'WFM')">JAZZ</div>
+      <div class="bband" onclick="setBand('NEWS',this,'WFM')">NEWS</div>
+      <div class="bband" onclick="setBand('ROCK',this,'WFM')">ROCK</div>
+      <div class="bband" onclick="setBand('CLAS',this,'WFM')">CLASS</div>
+      <div class="bband" onclick="setBand('TALK',this,'WFM')">TALK</div>
+      <div class="bband" onclick="setBand('ELEC',this,'WFM')">ELEC</div>
+      <div class="bband" onclick="setBand('HIP',this,'WFM')">HIP-HOP</div>
+    </div>
+    <div class="sep"></div>
+    <div class="pl">◈ MODE</div>
+    <div class="modes">
+      <div class="mbtn on" id="m-WFM">WFM</div>
+      <div class="mbtn" id="m-NFM">NFM</div>
+      <div class="mbtn" id="m-AM">AM</div>
+      <div class="mbtn" id="m-USB">USB</div>
+      <div class="mbtn" id="m-LSB">LSB</div>
+      <div class="mbtn" id="m-CW">CW</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="clabel">
+      <span>◈ FFT SPECTRUM ANALYZER</span>
+      <span style="font-size:9px">BW: <span style="color:var(--g)">200 kHz</span> | RBW: 1 kHz</span>
+    </div>
+    <canvas id="spec" style="width:100%;height:140px;display:block"></canvas>
+    <div class="clabel" style="margin-top:1px">
+      <span>◈ WATERFALL</span>
+      <span style="color:var(--g);font-size:9px">LIVE</span>
+    </div>
+    <canvas id="wat" style="width:100%;flex:1;display:block;min-height:0"></canvas>
+    <div style="border-top:1px solid var(--b);background:var(--p);padding:6px 10px;flex-shrink:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-family:Orbitron;font-size:8px;letter-spacing:2px;color:var(--gd)">◈ AUDIO DEMODULATOR</span>
+        <span id="audio-status" style="font-size:9px;color:var(--gd)">IDLE</span>
       </div>
-      <div class="knob-sub-label">DRAG TO TUNE / SCROLL</div>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Step buttons -->
-    <div class="panel-label">◈ TUNING STEP</div>
-    <div class="btn-grid">
-      <div class="btn" onclick="setStep(1)">1 kHz</div>
-      <div class="btn" onclick="setStep(5)">5 kHz</div>
-      <div class="btn active" onclick="setStep(100)" id="step-100">100 kHz</div>
-      <div class="btn" onclick="setStep(1000)">1 MHz</div>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Band selector -->
-    <div class="panel-label">◈ BAND SELECT</div>
-    <div class="band-btns">
-      <div class="band-btn" onclick="setBand('AM')">AM</div>
-      <div class="band-btn active" onclick="setBand('FM')" id="band-FM">FM</div>
-      <div class="band-btn" onclick="setBand('SW')">SW</div>
-      <div class="band-btn" onclick="setBand('AIR')">AIR</div>
-      <div class="band-btn" onclick="setBand('WX')">WX</div>
-      <div class="band-btn" onclick="setBand('HAM')">HAM</div>
-      <div class="band-btn" onclick="setBand('MIL')">MIL</div>
-      <div class="band-btn" onclick="setBand('CB')">CB</div>
-    </div>
-
-  </div>
-
-  <!-- ── CENTER: SPECTRUM + WATERFALL ── -->
-  <div class="spectrum-panel panel" style="padding:0; background:var(--bg);">
-    <div style="padding:6px 10px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-family:'Orbitron';font-size:9px;letter-spacing:3px;color:var(--green-dim)">◈ FFT SPECTRUM ANALYZER</span>
-      <span style="font-size:9px;color:var(--green-dim)">BW: <span id="bw-display" style="color:var(--green)">200 kHz</span> | RBW: <span style="color:var(--green)">1 kHz</span></span>
-    </div>
-    <canvas id="spectrum-canvas"></canvas>
-    <div style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:2px 10px; background:var(--panel); display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-family:'Orbitron';font-size:9px;letter-spacing:3px;color:var(--green-dim)">◈ WATERFALL DISPLAY</span>
-      <span style="font-size:9px;color:var(--green-dim)">TIME: <span style="color:var(--green)">LIVE</span></span>
-    </div>
-    <canvas id="waterfall-canvas"></canvas>
-
-    <!-- BOTTOM of center: audio waveform + demod -->
-    <div style="border-top:1px solid var(--border); background:var(--panel); padding:8px 10px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-        <span style="font-family:'Orbitron';font-size:9px;letter-spacing:2px;color:var(--green-dim)">◈ AUDIO DEMODULATOR</span>
-        <div class="mode-wrap" style="margin:0;">
-          <div class="mode-btn active" onclick="setMode('WFM','WFM')" id="mode-WFM">WFM</div>
-          <div class="mode-btn" onclick="setMode('NFM','NFM')" id="mode-NFM">NFM</div>
-          <div class="mode-btn" onclick="setMode('AM','AM')" id="mode-AM">AM</div>
-          <div class="mode-btn" onclick="setMode('USB','USB')" id="mode-USB">USB</div>
-          <div class="mode-btn" onclick="setMode('LSB','LSB')" id="mode-LSB">LSB</div>
-          <div class="mode-btn" onclick="setMode('CW','CW')" id="mode-CW">CW</div>
-        </div>
-      </div>
-      <canvas id="audio-canvas"></canvas>
+      <canvas id="wave" style="width:100%;height:44px;display:block"></canvas>
     </div>
   </div>
 
-  <!-- ── RIGHT PANEL ── -->
-  <div class="panel" style="grid-row:1/3; overflow-y:auto; display:flex; flex-direction:column; gap:0;">
-
-    <div class="panel-label">◈ SIGNAL INTELLIGENCE</div>
-
-    <!-- Signal meters -->
-    <div class="meter-row">
-      <div class="meter-label"><span>SIGNAL LEVEL</span><span id="sig-val" style="color:var(--green)">S7</span></div>
-      <div class="meter-bar"><div class="meter-fill signal" id="meter-signal" style="width:60%"></div></div>
-      <div class="s-units"><span>S0</span><span>S3</span><span>S6</span><span>S9</span><span>+40</span></div>
+  <!-- RIGHT PANEL -->
+  <div class="panel">
+    <div class="pl">◈ NOW PLAYING</div>
+    <div class="nowplay">
+      <div class="np-name" id="np-name">— NO SIGNAL —</div>
+      <div class="np-sub" id="np-sub">SELECT A STATION BELOW</div>
     </div>
-    <div class="meter-row">
-      <div class="meter-label"><span>S/N RATIO</span><span id="snr-val" style="color:var(--cyan)">24 dB</span></div>
-      <div class="meter-bar"><div class="meter-fill snr" id="meter-snr" style="width:55%"></div></div>
-    </div>
-    <div class="meter-row">
-      <div class="meter-label"><span>SQUELCH</span><span id="sq-val" style="color:var(--amber)">—</span></div>
-      <div class="meter-bar"><div class="meter-fill quality" id="meter-sq" style="width:30%"></div></div>
+    <div class="bgrid" style="margin-bottom:8px">
+      <div class="btn am" id="btn-play" onclick="togglePlay()">▶ PLAY</div>
+      <div class="btn rd" onclick="stopAudio()">■ STOP</div>
     </div>
 
-    <div class="sep"></div>
+    <div class="pl">◈ SIGNAL LEVEL</div>
+    <div class="mrow">
+      <div class="mlabel"><span>SIGNAL</span><span id="sv" style="color:var(--g)">S0</span></div>
+      <div class="mbar"><div class="mfill ms" id="msig" style="width:5%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#004010;margin-top:2px"><span>S0</span><span>S5</span><span>S9</span><span>+40</span></div>
+    </div>
+    <div class="mrow">
+      <div class="mlabel"><span>S/N RATIO</span><span id="snv" style="color:var(--cy)">— dB</span></div>
+      <div class="mbar"><div class="mfill mn" id="msnr" style="width:5%"></div></div>
+    </div>
 
-    <!-- Volume / Squelch sliders -->
-    <div class="panel-label">◈ AUDIO CONTROLS</div>
-    <div class="vol-row">
-      <div class="vol-label">VOL</div>
-      <input type="range" class="sdr-range" id="vol-slider" min="0" max="100" value="75" oninput="document.getElementById('vol-out').textContent=this.value">
-      <div class="vol-val" id="vol-out">75</div>
+    <div class="vrow" style="margin-top:8px">
+      <div class="vlbl">VOL</div>
+      <input type="range" class="sr" id="vol" min="0" max="100" value="80" oninput="setVol(this.value)">
+      <div class="vv" id="vv">80</div>
     </div>
-    <div class="vol-row">
-      <div class="vol-label">SQL</div>
-      <input type="range" class="sdr-range" id="sql-slider" min="0" max="100" value="20" oninput="document.getElementById('sql-out').textContent=this.value">
-      <div class="vol-val" id="sql-out">20</div>
-    </div>
-    <div class="vol-row">
-      <div class="vol-label">GAIN</div>
-      <input type="range" class="sdr-range" id="gain-slider" min="0" max="60" value="30" oninput="document.getElementById('gain-out').textContent=this.value+'dB'">
-      <div class="vol-val" id="gain-out">30dB</div>
+    <div class="vrow">
+      <div class="vlbl">GAIN</div>
+      <input type="range" class="sr" min="0" max="60" value="30" oninput="document.getElementById('gv').textContent=this.value+'dB'">
+      <div class="vv" id="gv">30dB</div>
     </div>
 
     <div class="sep"></div>
-
-    <!-- Scan / Controls -->
-    <div class="panel-label">◈ SCAN CONTROL</div>
-    <div class="btn-grid">
-      <div class="btn amber-btn" id="btn-scan" onclick="toggleScan()">▶ SCAN</div>
-      <div class="btn" onclick="tunePrev()">◀ PREV</div>
-      <div class="btn" onclick="tuneNext()">NEXT ▶</div>
-      <div class="btn danger" onclick="squelch()">SQUELCH</div>
+    <div class="pl">◈ SCAN CONTROL</div>
+    <div class="bgrid">
+      <div class="btn am" id="btn-scan" onclick="toggleScan()">▶ SCAN</div>
+      <div class="btn" onclick="prevStation()">◀ PREV</div>
+      <div class="btn" onclick="nextStation()">NEXT ▶</div>
+      <div class="btn rd" onclick="stopAudio()">SQUELCH</div>
     </div>
-    <div class="scan-bar" id="scan-bar"></div>
+    <div class="scan-bar" id="sbar"></div>
 
     <div class="sep"></div>
-
-    <!-- Stations -->
-    <div class="panel-label">◈ STATION DATABASE</div>
-    <div class="station-list" id="station-list"></div>
-
-    <div class="sep"></div>
-
-    <!-- Intercept log -->
-    <div class="panel-label">◈ INTERCEPT LOG</div>
-    <div class="log-area" id="log-area"></div>
-
-    <div class="sep"></div>
-
-    <!-- Coordinates -->
-    <div class="panel-label">◈ SYSTEM STATUS</div>
-    <div class="coord-display">
-      <div>LAT: <span class="hl">38°42'N</span>  LON: <span class="hl">009°08'W</span></div>
-      <div>TEMP: <span class="hl" id="sys-temp">42°C</span>  CPU: <span class="hl" id="sys-cpu">12%</span></div>
-      <div>UPTIME: <span class="hl" id="sys-uptime">00:00:00</span></div>
-      <div>SAMPLES: <span class="hl" id="sys-samples">2.4 MSPS</span></div>
-      <div>BUFFER: <span class="hl">OK</span>  ERRORS: <span class="hl">0</span></div>
+    <div class="pl">◈ STATION DATABASE <span id="st-count" style="color:var(--gd)"></span></div>
+    <div class="slist" id="slist">
+      <div style="padding:8px;font-size:10px;color:var(--gd)" class="blink">LOADING DATABASE...</div>
     </div>
 
+    <div class="sep"></div>
+    <div class="pl">◈ INTERCEPT LOG</div>
+    <div class="log" id="log"></div>
+
+    <div class="sep"></div>
+    <div class="pl">◈ SYSTEM</div>
+    <div class="sys">
+      <div>UPTIME: <span class="hl" id="upt">00:00:00</span></div>
+      <div>TEMP: <span class="hl" id="tmp">42°C</span>  CPU: <span class="hl" id="cpu">8%</span></div>
+      <div>SOURCE: <span class="hl">radio-browser.info</span></div>
+      <div>API: <span class="hl" id="api-st">CONNECTING</span></div>
+    </div>
   </div>
 
-  <!-- ── BOTTOM BAR ── -->
-  <div class="bottom-bar">
-    <span><span class="blink">█</span> RX STREAM ACTIVE — NO AUDIO OUTPUT (INTERNET RADIO SIMULATION)</span>
-    <span>◈ SDR COCKPIT v2.0 MILITARY — FREQ RANGE: 0.1 MHz – 2.0 GHz</span>
-    <span id="frame-counter" style="color:var(--green-dim)">FPS: 60</span>
+  <div class="bot">
+    <span><span class="blink">█</span> INTERNET RADIO — CLICA NUMA ESTAÇÃO PARA OUVIR — ÁUDIO REAL</span>
+    <span id="fps" style="color:var(--gd)">FPS:60</span>
   </div>
-
 </div>
 
 <script>
-// ── STATIONS DATABASE ──
-const STATIONS = {
-  FM: [
-    {name:'ANTENA 1',freq:95.7,type:'FM',country:'PT'},
-    {name:'ANTENA 3',freq:100.3,type:'FM',country:'PT'},
-    {name:'RFM',freq:97.4,type:'FM',country:'PT'},
-    {name:'COMERCIAL',freq:98.5,type:'FM',country:'PT'},
-    {name:'RENASCENÇA',freq:89.5,type:'FM',country:'PT'},
-    {name:'MEGA HITS',freq:91.5,type:'FM',country:'PT'},
-    {name:'TSF JAZZ',freq:89.5,type:'FM',country:'PT'},
-    {name:'BBC R1',freq:98.8,type:'FM',country:'GB'},
-    {name:'FRANCE INFO',freq:105.5,type:'FM',country:'FR'},
-    {name:'DEUTSCHEFUNK',freq:99.2,type:'FM',country:'DE'},
-  ],
-  AM: [
-    {name:'RDP ANTENA 1',freq:0.666,type:'AM',country:'PT'},
-    {name:'BBC WORLD',freq:0.648,type:'AM',country:'GB'},
-    {name:'VOA NEWS',freq:0.909,type:'AM',country:'US'},
-    {name:'RFI MONDE',freq:1.17,type:'AM',country:'FR'},
-  ],
-  SW: [
-    {name:'BBC WORLD SVC',freq:9.740,type:'SW',country:'GB'},
-    {name:'VOICE OF RUSSIA',freq:7.340,type:'SW',country:'RU'},
-    {name:'CHINA RADIO',freq:9.570,type:'SW',country:'CN'},
-    {name:'RADIO HAVANA',freq:9.820,type:'SW',country:'CU'},
-    {name:'VOA ENGLISH',freq:9.575,type:'SW',country:'US'},
-    {name:'RADIO JAPAN',freq:11.975,type:'SW',country:'JP'},
-  ],
-  AIR:[
-    {name:'LISBON CTRL',freq:119.1,type:'AIR',country:'PT'},
-    {name:'PORTO APP',freq:120.85,type:'AIR',country:'PT'},
-    {name:'MADRID CTR',freq:121.5,type:'AIR',country:'ES'},
-    {name:'EMERG FREQ',freq:121.5,type:'AIR',country:'INT'},
-  ],
-  WX:[
-    {name:'NOAA WX-1',freq:162.4,type:'WX',country:'US'},
-    {name:'NOAA WX-2',freq:162.425,type:'WX',country:'US'},
-    {name:'NOAA WX-3',freq:162.45,type:'WX',country:'US'},
-  ],
-  HAM:[
-    {name:'HAM 2M CALL',freq:144.3,type:'HAM',country:'INT'},
-    {name:'HAM 70CM',freq:433.5,type:'HAM',country:'INT'},
-    {name:'APRS 144',freq:144.8,type:'HAM',country:'INT'},
-  ],
-  MIL:[
-    {name:'MIL HF GUARD',freq:8.364,type:'MIL',country:'NATO'},
-    {name:'MIL UHF SAT',freq:243.0,type:'MIL',country:'NATO'},
-    {name:'GUARD FREQ',freq:121.5,type:'MIL',country:'INT'},
-  ],
-  CB:[
-    {name:'CB CH19 HWY',freq:27.185,type:'CB',country:'US'},
-    {name:'CB CH9 EMRG',freq:27.065,type:'CB',country:'INT'},
-  ]
-};
+// ─────────────────────────────────────────────
+// AUDIO ENGINE
+// ─────────────────────────────────────────────
+const aud = new Audio();
+aud.crossOrigin = 'anonymous';
+let actx=null, analyser=null, aData=null, srcNode=null, audioConnected=false;
+let isPlaying=false, currentSt=null, targetSig=0.05;
 
-const BAND_RANGES = {
-  AM:[0.530,1.710],FM:[87.5,108],SW:[3,30],AIR:[108,137],WX:[162.4,162.55],HAM:[144,148],MIL:[8,9],CB:[26.965,27.405]
-};
-
-// ── STATE ──
-let currentFreq = 98.7;
-let currentBand = 'FM';
-let currentMode = 'WFM';
-let stepKHz = 100;
-let scanning = false;
-let scanDir = 1;
-let scanInterval = null;
-let knobAngle = 0;
-let knobDragging = false;
-let knobLastY = 0;
-let knobVelocity = 0;
-let knobInertiaFrame = null;
-let startTime = Date.now();
-let frameCount = 0;
-let lastFpsTime = Date.now();
-
-// ── SPECTRUM STATE ──
-const FFT_SIZE = 512;
-let spectrumData = new Float32Array(FFT_SIZE);
-let noiseSeed = Math.random() * 1000;
-let stations_in_view = [];
-let signalLevel = 0.6;
-let targetSignal = 0.6;
-
-// ── CANVASES ──
-const specCanvas = document.getElementById('spectrum-canvas');
-const specCtx = specCanvas.getContext('2d');
-const watCanvas = document.getElementById('waterfall-canvas');
-const watCtx = watCanvas.getContext('2d');
-const audioCanvas = document.getElementById('audio-canvas');
-const audioCtx = audioCanvas.getContext('2d');
-const knobCanvas = document.getElementById('main-knob');
-const knobCtx = knobCanvas.getContext('2d');
-
-// waterfall buffer
-let watBuffer = null;
-
-function resizeCanvases() {
-  const sw = specCanvas.parentElement.clientWidth;
-  specCanvas.width = sw; specCanvas.height = 160;
-  watCanvas.width = sw; watCanvas.height = watCanvas.parentElement.clientHeight || 200;
-  audioCanvas.width = audioCanvas.parentElement.clientWidth;
-  audioCanvas.height = 50;
-  watBuffer = null;
+function initAudio(){
+  if(audioConnected) return;
+  try {
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 256;
+    aData = new Uint8Array(analyser.frequencyBinCount);
+    srcNode = actx.createMediaElementSource(aud);
+    srcNode.connect(analyser);
+    analyser.connect(actx.destination);
+    audioConnected = true;
+  } catch(e){ addLog('AUDIO INIT FAIL: '+e.message,'la'); }
 }
 
-window.addEventListener('resize', resizeCanvases);
-setTimeout(resizeCanvases, 100);
-
-// ── KNOB DRAW ──
-function drawKnob() {
-  const c = knobCtx;
-  const cx=55,cy=55,r=48;
-  c.clearRect(0,0,110,110);
-
-  // outer ring
-  c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2);
-  c.strokeStyle='#00ff4144'; c.lineWidth=2; c.stroke();
-
-  // tick marks
-  for(let i=0;i<36;i++){
-    const a = (i/36)*Math.PI*2;
-    const ri = i%3===0?r-8:r-5;
-    c.beginPath();
-    c.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);
-    c.lineTo(cx+Math.cos(a)*ri,cy+Math.sin(a)*ri);
-    c.strokeStyle = i%3===0 ? '#00ff4188' : '#00ff4133';
-    c.lineWidth = i%3===0?1.5:0.8; c.stroke();
-  }
-
-  // knob body
-  const grad = c.createRadialGradient(cx-12,cy-12,2,cx,cy,r-12);
-  grad.addColorStop(0,'#1a3d1f');
-  grad.addColorStop(1,'#050f06');
-  c.beginPath(); c.arc(cx,cy,r-12,0,Math.PI*2);
-  c.fillStyle=grad; c.fill();
-  c.strokeStyle='#00ff4166'; c.lineWidth=1; c.stroke();
-
-  // indicator line
-  const angle = (knobAngle * Math.PI/180);
-  c.beginPath();
-  c.moveTo(cx,cy);
-  c.lineTo(cx+Math.cos(angle)*(r-16), cy+Math.sin(angle)*(r-16));
-  c.strokeStyle='#00ff41';
-  c.lineWidth=2.5;
-  c.shadowColor='#00ff41';
-  c.shadowBlur=8;
-  c.stroke();
-  c.shadowBlur=0;
-
-  // center dot
-  c.beginPath(); c.arc(cx,cy,4,0,Math.PI*2);
-  c.fillStyle='#00ff41'; c.fill();
-}
-
-// ── KNOB INTERACTION ──
-function applyKnobDelta(delta) {
-  const stepMHz = stepKHz/1000;
-  currentFreq += delta * stepMHz;
-  const range = BAND_RANGES[currentBand];
-  if(range){ if(currentFreq<range[0])currentFreq=range[0]; if(currentFreq>range[1])currentFreq=range[1]; }
-  updateFreqDisplay();
-}
-
-function startInertia(v) {
-  cancelAnimationFrame(knobInertiaFrame);
-  function step() {
-    if(Math.abs(v)<0.002){return;}
-    applyKnobDelta(v*5);
-    knobAngle += v*50;
-    v *= 0.92;
-    drawKnob();
-    knobInertiaFrame = requestAnimationFrame(step);
-  }
-  step();
-}
-
-const kc = document.getElementById('knob-container');
-kc.addEventListener('mousedown',e=>{
-  knobDragging=true; knobLastY=e.clientY; knobVelocity=0;
-  cancelAnimationFrame(knobInertiaFrame);
-  e.preventDefault();
-});
-document.addEventListener('mousemove',e=>{
-  if(!knobDragging)return;
-  const dy = knobLastY - e.clientY;
-  knobVelocity = dy * 0.01;
-  knobAngle += dy * 2;
-  applyKnobDelta(dy * 0.05);
-  knobLastY = e.clientY;
-  drawKnob();
-});
-document.addEventListener('mouseup',e=>{
-  if(knobDragging){ knobDragging=false; startInertia(knobVelocity); }
-});
-kc.addEventListener('wheel',e=>{
-  e.preventDefault();
-  const d = e.deltaY>0?-1:1;
-  knobAngle += d*10;
-  applyKnobDelta(d);
-  drawKnob();
-},{passive:false});
-
-// touch
-kc.addEventListener('touchstart',e=>{ knobDragging=true; knobLastY=e.touches[0].clientY; knobVelocity=0; e.preventDefault();},{passive:false});
-document.addEventListener('touchmove',e=>{
-  if(!knobDragging)return;
-  const dy=knobLastY-e.touches[0].clientY;
-  knobVelocity=dy*0.01; knobAngle+=dy*2; applyKnobDelta(dy*0.05); knobLastY=e.touches[0].clientY; drawKnob();
-});
-document.addEventListener('touchend',e=>{ if(knobDragging){knobDragging=false;startInertia(knobVelocity);} });
-
-// ── FREQ DISPLAY ──
-function updateFreqDisplay() {
-  document.getElementById('freq-display').textContent = currentFreq.toFixed(3);
-  // find nearest station
-  let allSt = STATIONS[currentBand]||[];
-  let nearest = allSt.find(s=>Math.abs(s.freq-currentFreq)<(stepKHz/1000*3));
-  if(nearest){
-    targetSignal = 0.5 + Math.random()*0.5;
-    addLog(`LOCK: ${nearest.name} @ ${currentFreq.toFixed(3)} MHz`,'signal');
-    // highlight in list
-    document.querySelectorAll('.station-item').forEach(el=>{
-      el.classList.toggle('active', el.dataset.freq==nearest.freq);
+function playStation(st){
+  if(!st||!st.url_resolved){ addLog('NO STREAM URL','la'); return; }
+  initAudio();
+  if(actx && actx.state==='suspended') actx.resume();
+  aud.src = st.url_resolved;
+  aud.load();
+  setNP('<span class="blink">CONNECTING...</span>','AGUARDA...');
+  document.getElementById('audio-status').textContent='BUFFERING...';
+  document.getElementById('audio-status').style.color='var(--am)';
+  aud.play()
+    .then(()=>{
+      isPlaying=true; currentSt=st;
+      setNP(st.name,(st.country||'')+(st.bitrate?' · '+st.bitrate+'kbps':'')+(st.codec?' · '+st.codec:''));
+      document.getElementById('dot-play').className='dot dg';
+      document.getElementById('btn-play').textContent='⏸ PAUSE';
+      document.getElementById('btn-play').classList.add('on');
+      document.getElementById('audio-status').textContent='RX ACTIVE';
+      document.getElementById('audio-status').style.color='var(--g)';
+      addLog('▶ LOCK: '+st.name,'ls');
+      targetSig=0.55+Math.random()*.4;
+    })
+    .catch(err=>{
+      setNP('STREAM ERROR','TENTA OUTRA ESTAÇÃO');
+      addLog('✗ FAIL: '+st.name+' — '+err.message,'la');
+      isPlaying=false; currentSt=null; targetSig=0.04;
+      document.getElementById('dot-play').className='dot dr';
+      document.getElementById('audio-status').textContent='ERROR';
+      document.getElementById('audio-status').style.color='var(--rd)';
     });
+}
+
+function setNP(name,sub){
+  document.getElementById('np-name').innerHTML=name;
+  document.getElementById('np-sub').textContent=sub||'';
+}
+
+function stopAudio(){
+  aud.pause(); aud.src='';
+  isPlaying=false; currentSt=null; targetSig=0.04;
+  setNP('— NO SIGNAL —','SELECT A STATION BELOW');
+  document.getElementById('dot-play').className='dot dr';
+  document.getElementById('btn-play').textContent='▶ PLAY';
+  document.getElementById('btn-play').classList.remove('on');
+  document.getElementById('audio-status').textContent='IDLE';
+  document.getElementById('audio-status').style.color='var(--gd)';
+  addLog('■ STOPPED','le');
+  document.querySelectorAll('.si').forEach(e=>e.classList.remove('on'));
+}
+
+function togglePlay(){
+  if(isPlaying){
+    aud.pause(); isPlaying=false;
+    document.getElementById('btn-play').textContent='▶ PLAY';
+    addLog('⏸ PAUSED','le');
+  } else if(aud.src && aud.src!==location.href){
+    initAudio();
+    if(actx && actx.state==='suspended') actx.resume();
+    aud.play().then(()=>{ isPlaying=true; document.getElementById('btn-play').textContent='⏸ PAUSE'; addLog('▶ RESUME','ls'); });
+  } else if(allStations.length){
+    const r=allStations[Math.floor(Math.random()*allStations.length)];
+    selectStation(allStations.indexOf(r));
+  }
+}
+
+function setVol(v){ aud.volume=v/100; document.getElementById('vv').textContent=v; }
+aud.volume=0.8;
+
+// ─────────────────────────────────────────────
+// KNOB
+// ─────────────────────────────────────────────
+let knobAngle=0, kdrag=false, klastY=0, kvel=0, kframe=null;
+const kcanv=document.getElementById('knob');
+const kctx=kcanv.getContext('2d');
+
+function drawKnob(){
+  const c=kctx,cx=50,cy=50,r=44;
+  c.clearRect(0,0,100,100);
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.strokeStyle='#00ff4133';c.lineWidth=1.5;c.stroke();
+  for(let i=0;i<32;i++){
+    const a=i/32*Math.PI*2,ri=i%4===0?r-7:r-4;
+    c.beginPath();c.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);c.lineTo(cx+Math.cos(a)*ri,cy+Math.sin(a)*ri);
+    c.strokeStyle=i%4===0?'#00ff4177':'#00ff4122';c.lineWidth=i%4===0?1.2:.6;c.stroke();
+  }
+  const g=c.createRadialGradient(cx-10,cy-10,2,cx,cy,r-10);
+  g.addColorStop(0,'#1a3d1f');g.addColorStop(1,'#040c05');
+  c.beginPath();c.arc(cx,cy,r-10,0,Math.PI*2);c.fillStyle=g;c.fill();
+  c.strokeStyle='#00ff4155';c.lineWidth=.8;c.stroke();
+  const a=knobAngle*Math.PI/180;
+  c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.cos(a)*(r-13),cy+Math.sin(a)*(r-13));
+  c.strokeStyle='#00ff41';c.lineWidth=2;c.shadowColor='#00ff41';c.shadowBlur=6;c.stroke();c.shadowBlur=0;
+  c.beginPath();c.arc(cx,cy,3,0,Math.PI*2);c.fillStyle='#00ff41';c.fill();
+}
+
+let currentFreq=98.7,stepKHz=100,currentBand='FM';
+const BRAND={FM:[87.5,108],AM:[0.53,1.71],SW:[3,30],JAZZ:[87.5,108],NEWS:[87.5,108],ROCK:[87.5,108],CLAS:[87.5,108],TALK:[87.5,108],ELEC:[87.5,108],HIP:[87.5,108]};
+
+function kDelta(d){
+  currentFreq+=d*(stepKHz/1000);
+  const r=BRAND[currentBand];
+  if(r){if(currentFreq<r[0])currentFreq=r[0];if(currentFreq>r[1])currentFreq=r[1];}
+  document.getElementById('fdisplay').textContent=currentFreq.toFixed(3);
+}
+function kInertia(v){
+  cancelAnimationFrame(kframe);
+  function s(){if(Math.abs(v)<.002)return;kDelta(v*5);knobAngle+=v*50;v*=.9;drawKnob();kframe=requestAnimationFrame(s);}
+  s();
+}
+const kc=document.getElementById('knob-c');
+kc.addEventListener('mousedown',e=>{kdrag=true;klastY=e.clientY;kvel=0;cancelAnimationFrame(kframe);e.preventDefault();});
+document.addEventListener('mousemove',e=>{if(!kdrag)return;const dy=klastY-e.clientY;kvel=dy*.01;knobAngle+=dy*2;kDelta(dy*.05);klastY=e.clientY;drawKnob();});
+document.addEventListener('mouseup',()=>{if(kdrag){kdrag=false;kInertia(kvel);}});
+kc.addEventListener('wheel',e=>{e.preventDefault();const d=e.deltaY>0?-1:1;knobAngle+=d*10;kDelta(d);drawKnob();},{passive:false});
+kc.addEventListener('touchstart',e=>{kdrag=true;klastY=e.touches[0].clientY;kvel=0;e.preventDefault();},{passive:false});
+document.addEventListener('touchmove',e=>{if(!kdrag)return;const dy=klastY-e.touches[0].clientY;kvel=dy*.01;knobAngle+=dy*2;kDelta(dy*.05);klastY=e.touches[0].clientY;drawKnob();});
+document.addEventListener('touchend',()=>{if(kdrag){kdrag=false;kInertia(kvel);}});
+
+function setStep(k,el){
+  stepKHz=k;
+  document.getElementById('sdisplay').textContent=k>=1000?(k/1000)+' MHz':k+' kHz';
+  document.querySelectorAll('.bgrid .btn:not(.am):not(.rd)').forEach(b=>b.classList.remove('on'));
+  if(el)el.classList.add('on');
+}
+
+// ─────────────────────────────────────────────
+// RADIO BROWSER API
+// ─────────────────────────────────────────────
+let allStations=[];
+const API=['https://de1.api.radio-browser.info','https://nl1.api.radio-browser.info','https://at1.api.radio-browser.info'];
+let apiIdx=0;
+
+const BTAG={FM:'',AM:'am',SW:'shortwave',JAZZ:'jazz',NEWS:'news',ROCK:'rock',CLAS:'classical',TALK:'talk',ELEC:'electronic',HIP:'hip-hop'};
+
+async function fetchStations(band){
+  document.getElementById('slist').innerHTML='<div style="padding:8px;font-size:10px;color:var(--gd)" class="blink">QUERYING DATABASE...</div>';
+  document.getElementById('api-st').textContent='FETCH';
+  const tag=BTAG[band]||'';
+  let url;
+  if(!tag||band==='FM'){
+    url=`${API[apiIdx]}/json/stations/bycountryexact/Portugal?limit=40&hidebroken=true&order=votes&reverse=true`;
   } else {
-    targetSignal = 0.05 + Math.random()*0.25;
+    url=`${API[apiIdx]}/json/stations/bytag/${encodeURIComponent(tag)}?limit=40&hidebroken=true&order=votes&reverse=true`;
+  }
+  try{
+    const res=await fetch(url,{headers:{'User-Agent':'SDRCockpit/1.0'}});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    allStations=data.filter(s=>s.url_resolved&&s.url_resolved.startsWith('http'));
+    document.getElementById('st-count').textContent='('+allStations.length+')';
+    renderStations();
+    document.getElementById('api-st').textContent='ONLINE';
+    addLog('DB: '+allStations.length+' STATIONS LOADED','ls');
+  } catch(e){
+    if(apiIdx<API.length-1){apiIdx++;return fetchStations(band);}
+    document.getElementById('slist').innerHTML='<div style="padding:8px;font-size:10px;color:var(--rd)">API OFFLINE<br><br>Verifica a ligação à internet</div>';
+    document.getElementById('api-st').textContent='OFFLINE';
+    addLog('API FAIL: '+e.message,'la');
   }
 }
 
-// ── SPECTRUM GENERATOR ──
-function generateSpectrum() {
-  const allSt = STATIONS[currentBand]||[];
-  const range = BAND_RANGES[currentBand]||[currentFreq-1,currentFreq+1];
-  const bw = range[1]-range[0];
-
-  for(let i=0;i<FFT_SIZE;i++){
-    // base noise
-    spectrumData[i] = (Math.random()*0.08 + 0.04) + Math.sin(i*0.05+noiseSeed)*0.02;
-  }
-  noiseSeed += 0.05;
-
-  // add station peaks
-  allSt.forEach(st=>{
-    const norm = (st.freq - range[0])/bw;
-    const bin = Math.floor(norm * FFT_SIZE);
-    if(bin<0||bin>=FFT_SIZE)return;
-    const strength = 0.4+Math.random()*0.5;
-    const width = currentBand==='FM'?8:4;
-    for(let d=-width;d<=width;d++){
-      if(bin+d>=0&&bin+d<FFT_SIZE){
-        const falloff = Math.exp(-d*d/(width*width*0.5));
-        spectrumData[bin+d] = Math.max(spectrumData[bin+d], strength*falloff);
-      }
-    }
-  });
-
-  // current freq marker (tuned signal)
-  const tuneNorm = (currentFreq - range[0])/bw;
-  const tuneBin = Math.floor(tuneNorm * FFT_SIZE);
-  const tuneStrength = targetSignal;
-  const tw = currentBand==='FM'?6:3;
-  for(let d=-tw;d<=tw;d++){
-    if(tuneBin+d>=0&&tuneBin+d<FFT_SIZE){
-      const f=Math.exp(-d*d/(tw*tw*0.5));
-      spectrumData[tuneBin+d]=Math.max(spectrumData[tuneBin+d],tuneStrength*f*(0.9+Math.random()*0.2));
-    }
-  }
-}
-
-// ── DRAW SPECTRUM ──
-function drawSpectrum() {
-  if(!specCanvas.width)return;
-  const W=specCanvas.width, H=specCanvas.height;
-  specCtx.clearRect(0,0,W,H);
-
-  // background grid
-  specCtx.strokeStyle='#00ff410a'; specCtx.lineWidth=0.5;
-  for(let i=0;i<=10;i++){
-    const x=i/10*W;
-    specCtx.beginPath(); specCtx.moveTo(x,0); specCtx.lineTo(x,H); specCtx.stroke();
-  }
-  for(let i=0;i<=5;i++){
-    const y=i/5*H;
-    specCtx.beginPath(); specCtx.moveTo(0,y); specCtx.lineTo(W,y); specCtx.stroke();
-  }
-
-  // dB labels
-  specCtx.fillStyle='#00ff4144'; specCtx.font='9px Share Tech Mono';
-  ['0','−20','−40','−60','−80'].forEach((l,i)=>{
-    specCtx.fillText(l+'dB',4,i/4*H+10);
-  });
-
-  // spectrum fill
-  specCtx.beginPath(); specCtx.moveTo(0,H);
-  for(let i=0;i<FFT_SIZE;i++){
-    const x=(i/FFT_SIZE)*W;
-    const y=H-(spectrumData[i]*H*0.9);
-    if(i===0)specCtx.lineTo(x,y); else specCtx.lineTo(x,y);
-  }
-  specCtx.lineTo(W,H); specCtx.closePath();
-
-  const grad=specCtx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'#00ff4188');
-  grad.addColorStop(0.5,'#00b32d44');
-  grad.addColorStop(1,'#00ff4108');
-  specCtx.fillStyle=grad; specCtx.fill();
-
-  // spectrum line
-  specCtx.beginPath();
-  for(let i=0;i<FFT_SIZE;i++){
-    const x=(i/FFT_SIZE)*W;
-    const y=H-(spectrumData[i]*H*0.9);
-    if(i===0)specCtx.moveTo(x,y); else specCtx.lineTo(x,y);
-  }
-  specCtx.strokeStyle='#00ff41cc'; specCtx.lineWidth=1.2;
-  specCtx.shadowColor='#00ff41'; specCtx.shadowBlur=4;
-  specCtx.stroke(); specCtx.shadowBlur=0;
-
-  // tuned frequency cursor
-  const range=BAND_RANGES[currentBand]||[currentFreq-1,currentFreq+1];
-  const bw=range[1]-range[0];
-  const tuneX=((currentFreq-range[0])/bw)*W;
-  specCtx.beginPath(); specCtx.moveTo(tuneX,0); specCtx.lineTo(tuneX,H);
-  specCtx.strokeStyle='#00e5ffaa'; specCtx.lineWidth=1.5;
-  specCtx.shadowColor='#00e5ff'; specCtx.shadowBlur=6;
-  specCtx.stroke(); specCtx.shadowBlur=0;
-
-  // cursor label
-  specCtx.fillStyle='#00e5ff'; specCtx.font='10px Orbitron';
-  specCtx.fillText(currentFreq.toFixed(3)+' MHz', Math.min(tuneX+4,W-100), 16);
-
-  // station labels
-  const allSt=STATIONS[currentBand]||[];
-  allSt.forEach(st=>{
-    const sx=((st.freq-range[0])/bw)*W;
-    if(sx<0||sx>W)return;
-    specCtx.fillStyle='#00ff4166'; specCtx.font='8px Share Tech Mono';
-    specCtx.fillText(st.name, Math.max(0,Math.min(sx-20,W-60)), H-4);
-    specCtx.beginPath(); specCtx.moveTo(sx,H-14); specCtx.lineTo(sx,H);
-    specCtx.strokeStyle='#00ff4144'; specCtx.lineWidth=0.5; specCtx.stroke();
-  });
-}
-
-// ── WATERFALL ──
-function drawWaterfall() {
-  if(!watCanvas.width||!watCanvas.height)return;
-  const W=watCanvas.width, H=watCanvas.height;
-
-  if(!watBuffer){
-    watBuffer = watCtx.createImageData(W,H);
-    watBuffer.data.fill(0);
-  }
-
-  // scroll down
-  for(let y=H-1;y>0;y--){
-    const dst=(y*W)*4;
-    const src=((y-1)*W)*4;
-    watBuffer.data.copyWithin(dst,src,src+W*4);
-  }
-
-  // new line at top
-  const range=BAND_RANGES[currentBand]||[currentFreq-1,currentFreq+1];
-  const bw=range[1]-range[0];
-  for(let x=0;x<W;x++){
-    const bin=Math.floor((x/W)*FFT_SIZE);
-    const v=Math.min(1,spectrumData[bin]*(0.95+Math.random()*0.1));
-    const idx=x*4;
-    // color: dark green → bright green → cyan → white for strong signals
-    if(v<0.15){
-      watBuffer.data[idx]=0; watBuffer.data[idx+1]=Math.floor(v*100); watBuffer.data[idx+2]=0; watBuffer.data[idx+3]=255;
-    } else if(v<0.4){
-      const t=(v-0.15)/0.25;
-      watBuffer.data[idx]=0; watBuffer.data[idx+1]=Math.floor(50+t*180); watBuffer.data[idx+2]=Math.floor(t*50); watBuffer.data[idx+3]=255;
-    } else if(v<0.7){
-      const t=(v-0.4)/0.3;
-      watBuffer.data[idx]=Math.floor(t*100); watBuffer.data[idx+1]=200; watBuffer.data[idx+2]=Math.floor(50+t*150); watBuffer.data[idx+3]=255;
-    } else {
-      const t=(v-0.7)/0.3;
-      watBuffer.data[idx]=Math.floor(100+t*155); watBuffer.data[idx+1]=255; watBuffer.data[idx+2]=Math.floor(200+t*55); watBuffer.data[idx+3]=255;
-    }
-  }
-  watCtx.putImageData(watBuffer,0,0);
-
-  // tuned cursor overlay
-  const tuneX=((currentFreq-range[0])/bw)*W;
-  watCtx.beginPath(); watCtx.moveTo(tuneX,0); watCtx.lineTo(tuneX,H);
-  watCtx.strokeStyle='rgba(0,229,255,0.4)'; watCtx.lineWidth=1.5; watCtx.stroke();
-}
-
-// ── AUDIO WAVEFORM ──
-let audioPhase=0;
-function drawAudio() {
-  if(!audioCanvas.width)return;
-  const W=audioCanvas.width, H=audioCanvas.height;
-  audioCtx.clearRect(0,0,W,H);
-
-  const hasSig = targetSignal>0.3;
-  audioCtx.beginPath();
-  for(let x=0;x<W;x++){
-    const t=x/W;
-    let y=H/2;
-    if(hasSig){
-      y=H/2+Math.sin(audioPhase+t*60)*targetSignal*H*0.35
-        +Math.sin(audioPhase*0.7+t*100)*targetSignal*H*0.15
-        +(Math.random()-0.5)*targetSignal*H*0.1;
-    } else {
-      y=H/2+(Math.random()-0.5)*4;
-    }
-    if(x===0)audioCtx.moveTo(x,y); else audioCtx.lineTo(x,y);
-  }
-  audioCtx.strokeStyle='#00ff41cc'; audioCtx.lineWidth=1.2;
-  audioCtx.shadowColor='#00ff41'; audioCtx.shadowBlur=3;
-  audioCtx.stroke(); audioCtx.shadowBlur=0;
-  audioPhase+=0.15;
-}
-
-// ── SIGNAL METER UPDATE ──
-function updateMeters() {
-  signalLevel += (targetSignal - signalLevel)*0.05;
-  signalLevel += (Math.random()-0.5)*0.02;
-  signalLevel=Math.max(0,Math.min(1,signalLevel));
-  const snr = signalLevel>0.3 ? 0.4+Math.random()*0.5 : 0.05+Math.random()*0.2;
-  const sq = signalLevel>0.4 ? 1 : 0;
-
-  document.getElementById('meter-signal').style.width=(signalLevel*100)+'%';
-  document.getElementById('meter-snr').style.width=(snr*100)+'%';
-  document.getElementById('meter-sq').style.width=(sq*100)+'%';
-
-  const sUnits=['S0','S1','S2','S3','S4','S5','S6','S7','S8','S9','S9+10','S9+20'];
-  const sIdx=Math.min(11,Math.floor(signalLevel*11));
-  document.getElementById('sig-val').textContent=sUnits[sIdx];
-  document.getElementById('snr-val').textContent=Math.round(snr*40)+' dB';
-  document.getElementById('sq-val').textContent=sq?'OPEN':'CLOSED';
-}
-
-// ── LOG ──
-const LOG_MAX=80;
-let logLines=[];
-function addLog(msg,cls=''){
-  const t=new Date();
-  const ts=t.toTimeString().slice(0,8)+'Z';
-  logLines.unshift(`<div class="log-line ${cls}">[${ts}] ${msg}</div>`);
-  if(logLines.length>LOG_MAX)logLines.pop();
-  document.getElementById('log-area').innerHTML=logLines.join('');
-}
-
-// ── SCAN ──
-function toggleScan(){
-  scanning=!scanning;
-  const btn=document.getElementById('btn-scan');
-  const bar=document.getElementById('scan-bar');
-  if(scanning){
-    btn.textContent='■ STOP'; btn.classList.add('active');
-    bar.classList.add('visible');
-    addLog('AUTO SCAN STARTED','event');
-    scanInterval=setInterval(()=>{
-      currentFreq+=scanDir*(stepKHz/1000);
-      const range=BAND_RANGES[currentBand]||[currentFreq,currentFreq];
-      if(currentFreq>range[1]){currentFreq=range[0];addLog('SCAN WRAP → LOW END','event');}
-      updateFreqDisplay();
-    },300);
-  } else {
-    btn.textContent='▶ SCAN'; btn.classList.remove('active');
-    bar.classList.remove('visible');
-    clearInterval(scanInterval);
-    addLog('SCAN STOPPED','event');
-  }
-}
-
-function tuneNext(){
-  const sts=STATIONS[currentBand]||[];
-  const next=sts.find(s=>s.freq>currentFreq+0.001);
-  if(next){currentFreq=next.freq;updateFreqDisplay();}
-}
-function tunePrev(){
-  const sts=[...(STATIONS[currentBand]||[])].reverse();
-  const prev=sts.find(s=>s.freq<currentFreq-0.001);
-  if(prev){currentFreq=prev.freq;updateFreqDisplay();}
-}
-function squelch(){
-  addLog('SQUELCH ENGAGED','event');
-  document.getElementById('sql-slider').value=50;
-  document.getElementById('sql-out').textContent='50';
-}
-
-// ── STEP ──
-function setStep(khz){
-  stepKHz=khz;
-  document.getElementById('step-display').textContent=khz>=1000?(khz/1000)+' MHz':khz+' kHz';
-  document.querySelectorAll('.btn-grid .btn').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
-}
-
-// ── BAND ──
-function setBand(b){
-  if(scanning)toggleScan();
-  currentBand=b;
-  document.querySelectorAll('.band-btn').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.band-btn').forEach(el=>{if(el.textContent===b)el.classList.add('active');});
-  const range=BAND_RANGES[b];
-  if(range) currentFreq=(range[0]+range[1])/2;
-  const modeMap={FM:'WFM',AM:'AM',SW:'USB',AIR:'NFM',WX:'NFM',HAM:'USB',MIL:'USB',CB:'NFM'};
-  setMode(modeMap[b]||'WFM',modeMap[b]||'WFM');
-  const names={FM:'FM BROADCAST',AM:'AM BROADCAST',SW:'SHORT WAVE',AIR:'AVIATION',WX:'WEATHER',HAM:'AMATEUR',MIL:'MILITARY',CB:'CITIZENS BAND'};
-  document.getElementById('band-display').textContent=names[b]||b;
-  populateStations();
-  addLog(`BAND SELECT: ${b} — ${names[b]}`,'event');
-  updateFreqDisplay();
-  watBuffer=null;
-}
-
-// ── MODE ──
-function setMode(m,id){
-  currentMode=m;
-  document.getElementById('mode-display').textContent=m;
-  document.querySelectorAll('.mode-btn').forEach(el=>el.classList.remove('active'));
-  const el=document.getElementById('mode-'+id);
-  if(el)el.classList.add('active');
-}
-
-// ── STATIONS LIST ──
-function populateStations(){
-  const sts=STATIONS[currentBand]||[];
-  document.getElementById('station-list').innerHTML=sts.map(s=>`
-    <div class="station-item" data-freq="${s.freq}" onclick="tuneToStation(${s.freq},'${s.name}')">
-      <span class="station-name">${s.name}</span>
-      <span>${s.freq.toFixed(3)}</span>
-      <span class="station-type">${s.type}</span>
+function renderStations(){
+  const el=document.getElementById('slist');
+  if(!allStations.length){el.innerHTML='<div style="padding:8px;font-size:10px;color:var(--gd)">0 STATIONS</div>';return;}
+  el.innerHTML=allStations.map((s,i)=>`
+    <div class="si${currentSt&&currentSt.stationuuid===s.stationuuid?' on':''}" onclick="selectStation(${i})" data-i="${i}">
+      <span class="sn">${escHtml(s.name)}</span>
+      <span class="sf">${s.bitrate||''}</span>
+      <span class="st">${(s.codec||'?').slice(0,4)}</span>
     </div>`).join('');
 }
 
-function tuneToStation(freq,name){
-  currentFreq=freq;
-  updateFreqDisplay();
-  addLog(`TUNED: ${name} @ ${freq.toFixed(3)} MHz`,'signal');
-  document.querySelectorAll('.station-item').forEach(el=>el.classList.toggle('active',parseFloat(el.dataset.freq)===freq));
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+let scanIdx=0;
+function selectStation(i){
+  const st=allStations[i];if(!st)return;
+  scanIdx=i;
+  document.querySelectorAll('.si').forEach(e=>e.classList.remove('on'));
+  document.querySelector(`.si[data-i="${i}"]`)?.classList.add('on');
+  document.querySelector(`.si[data-i="${i}"]`)?.scrollIntoView({block:'nearest'});
+  playStation(st);
 }
 
-// ── CLOCK ──
-function updateClock(){
-  const now=new Date();
-  const h=now.getUTCHours().toString().padStart(2,'0');
-  const m=now.getUTCMinutes().toString().padStart(2,'0');
-  const s=now.getUTCSeconds().toString().padStart(2,'0');
-  document.getElementById('clock').textContent=`${h}:${m}:${s}Z`;
-  const up=Math.floor((Date.now()-startTime)/1000);
-  const uh=Math.floor(up/3600).toString().padStart(2,'0');
-  const um=Math.floor((up%3600)/60).toString().padStart(2,'0');
-  const us=(up%60).toString().padStart(2,'0');
-  document.getElementById('sys-uptime').textContent=`${uh}:${um}:${us}`;
-  document.getElementById('sys-temp').textContent=Math.round(38+Math.random()*8)+'°C';
-  document.getElementById('sys-cpu').textContent=Math.round(5+Math.random()*20)+'%';
+function setBand(b,el,mode){
+  currentBand=b;
+  document.querySelectorAll('.bband').forEach(e=>e.classList.remove('on'));
+  if(el)el.classList.add('on');
+  document.getElementById('bdisplay').textContent=b;
+  if(mode){document.getElementById('mdisplay').textContent=mode;document.querySelectorAll('.mbtn').forEach(e=>e.classList.remove('on'));const m=document.getElementById('m-'+mode);if(m)m.classList.add('on');}
+  fetchStations(b);
 }
 
-// ── RANDOM LOG EVENTS ──
-const LOG_EVENTS=[
-  ()=>addLog(`CARRIER DETECT @ ${(currentFreq+((Math.random()-0.5)*0.1)).toFixed(3)} MHz`,'signal'),
-  ()=>addLog('FFT BUFFER FLUSH — OK',''),
-  ()=>addLog('AGC LEVEL ADJUSTED',''),
-  ()=>addLog(`NOISE FLOOR: ${-Math.round(110+Math.random()*20)} dBm`,''),
-  ()=>addLog('SCAN LOCK LOST — RESUMING','event'),
-  ()=>addLog(`HARMONIC DETECTED @ ${(currentFreq*2).toFixed(3)} MHz`,'event'),
-  ()=>addLog('IQ IMBALANCE CORRECTED',''),
-  ()=>addLog('PPM CORRECTION: +0.4',''),
-  ()=>addLog('STRONG SIGNAL: POSSIBLE INTERFERENCE','alert'),
-];
-setInterval(()=>{
-  if(Math.random()<0.15) LOG_EVENTS[Math.floor(Math.random()*LOG_EVENTS.length)]();
-},4000);
+function nextStation(){if(!allStations.length)return;scanIdx=(scanIdx+1)%allStations.length;selectStation(scanIdx);}
+function prevStation(){if(!allStations.length)return;scanIdx=(scanIdx-1+allStations.length)%allStations.length;selectStation(scanIdx);}
 
-// ── MAIN LOOP ──
-let lastWatTime=0;
-function loop(ts){
-  generateSpectrum();
-  drawSpectrum();
-  if(ts-lastWatTime>80){ drawWaterfall(); lastWatTime=ts; }
-  drawAudio();
-  updateMeters();
+let scanning=false,scanTm=null;
+function toggleScan(){
+  scanning=!scanning;
+  const btn=document.getElementById('btn-scan'),bar=document.getElementById('sbar');
+  if(scanning){btn.textContent='■ STOP';btn.classList.add('on');bar.classList.add('on');addLog('SCAN START','le');doScan();}
+  else{btn.textContent='▶ SCAN';btn.classList.remove('on');bar.classList.remove('on');clearTimeout(scanTm);addLog('SCAN STOP','le');}
+}
+function doScan(){
+  if(!scanning)return;
+  scanIdx=(scanIdx+1)%Math.max(1,allStations.length);
+  if(allStations.length)selectStation(scanIdx);
+  scanTm=setTimeout(doScan,9000);
+}
 
-  frameCount++;
-  const now=Date.now();
-  if(now-lastFpsTime>1000){
-    document.getElementById('frame-counter').textContent='FPS: '+frameCount;
-    frameCount=0; lastFpsTime=now;
+// ─────────────────────────────────────────────
+// CANVASES
+// ─────────────────────────────────────────────
+const sc=document.getElementById('spec'),sctx=sc.getContext('2d');
+const wc=document.getElementById('wat'),wctx=wc.getContext('2d');
+const vc=document.getElementById('wave'),vctx=vc.getContext('2d');
+let wbuf=null;
+
+function resize(){
+  const cen=document.querySelector('.center');
+  const W=cen.clientWidth;
+  sc.width=W;sc.height=140;
+  const usedH=140+32+56; // spec + label + wave panel
+  wc.width=W;wc.height=Math.max(80,cen.clientHeight-usedH-32);
+  vc.width=W;vc.height=44;
+  wbuf=null;
+}
+window.addEventListener('resize',resize);
+setTimeout(resize,200);
+
+// ─────────────────────────────────────────────
+// SPECTRUM
+// ─────────────────────────────────────────────
+const FFT=512;let spd=new Float32Array(FFT),ns=Math.random()*1000;
+
+function genSpec(){
+  if(analyser&&isPlaying){
+    const fd=new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(fd);
+    for(let i=0;i<FFT;i++){const b=Math.floor(i/FFT*fd.length);spd[i]=fd[b]/255*.85+Math.random()*.06;}
+    targetSig=fd.reduce((a,b)=>a+b,0)/fd.length/255*.9;
+  } else {
+    for(let i=0;i<FFT;i++)spd[i]=Math.random()*.07+.03+Math.sin(i*.04+ns)*.015;
+    ns+=.04;
+    if(Math.random()<.008){const pk=Math.floor(Math.random()*FFT);for(let d=-4;d<=4;d++){if(pk+d>=0&&pk+d<FFT)spd[pk+d]=Math.max(spd[pk+d],.25*Math.exp(-d*d/8));}}
   }
+}
+
+function drawSpec(){
+  if(!sc.width)return;
+  const W=sc.width,H=sc.height;
+  sctx.clearRect(0,0,W,H);
+  sctx.strokeStyle='#00ff4109';sctx.lineWidth=.5;
+  for(let i=1;i<10;i++){sctx.beginPath();sctx.moveTo(i/10*W,0);sctx.lineTo(i/10*W,H);sctx.stroke();}
+  for(let i=1;i<4;i++){sctx.beginPath();sctx.moveTo(0,i/4*H);sctx.lineTo(W,i/4*H);sctx.stroke();}
+  sctx.fillStyle='#00ff4133';sctx.font='8px Share Tech Mono';
+  ['0dB','-20','-40','-60'].forEach((l,i)=>sctx.fillText(l,3,i/3*H+10));
+  sctx.beginPath();sctx.moveTo(0,H);
+  for(let i=0;i<FFT;i++){const x=i/FFT*W,y=H-spd[i]*H*.86;if(i===0)sctx.lineTo(x,y);else sctx.lineTo(x,y);}
+  sctx.lineTo(W,H);sctx.closePath();
+  const g=sctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#00ff4180');g.addColorStop(.55,'#00b32d28');g.addColorStop(1,'#00ff4106');
+  sctx.fillStyle=g;sctx.fill();
+  sctx.beginPath();
+  for(let i=0;i<FFT;i++){const x=i/FFT*W,y=H-spd[i]*H*.86;if(i===0)sctx.moveTo(x,y);else sctx.lineTo(x,y);}
+  sctx.strokeStyle='#00ff41bb';sctx.lineWidth=1.2;sctx.shadowColor='#00ff41';sctx.shadowBlur=3;sctx.stroke();sctx.shadowBlur=0;
+  sctx.beginPath();sctx.moveTo(W/2,0);sctx.lineTo(W/2,H);
+  sctx.strokeStyle='#00e5ff88';sctx.lineWidth=1.5;sctx.shadowColor='#00e5ff';sctx.shadowBlur=4;sctx.stroke();sctx.shadowBlur=0;
+  sctx.fillStyle='#00e5ff';sctx.font='10px Orbitron';
+  sctx.fillText(currentFreq.toFixed(3)+' MHz',W/2+4,14);
+}
+
+function drawWat(){
+  if(!wc.width||!wc.height)return;
+  const W=wc.width,H=wc.height;
+  if(!wbuf)wbuf=wctx.createImageData(W,H);
+  for(let y=H-1;y>0;y--){const d=(y*W)*4,s=((y-1)*W)*4;wbuf.data.copyWithin(d,s,s+W*4);}
+  for(let x=0;x<W;x++){
+    const b=Math.floor(x/W*FFT);const v=Math.min(1,spd[b]*(1+Math.random()*.08));const i=x*4;
+    if(v<.1){wbuf.data[i]=0;wbuf.data[i+1]=Math.floor(v*180);wbuf.data[i+2]=0;wbuf.data[i+3]=255;}
+    else if(v<.38){const t=(v-.1)/.28;wbuf.data[i]=0;wbuf.data[i+1]=Math.floor(18+t*205);wbuf.data[i+2]=Math.floor(t*55);wbuf.data[i+3]=255;}
+    else if(v<.68){const t=(v-.38)/.3;wbuf.data[i]=Math.floor(t*110);wbuf.data[i+1]=200;wbuf.data[i+2]=Math.floor(40+t*165);wbuf.data[i+3]=255;}
+    else{const t=(v-.68)/.32;wbuf.data[i]=Math.floor(90+t*165);wbuf.data[i+1]=255;wbuf.data[i+2]=Math.floor(170+t*85);wbuf.data[i+3]=255;}
+  }
+  wctx.putImageData(wbuf,0,0);
+  wctx.beginPath();wctx.moveTo(W/2,0);wctx.lineTo(W/2,H);wctx.strokeStyle='rgba(0,229,255,.3)';wctx.lineWidth=1.5;wctx.stroke();
+}
+
+function drawWave(){
+  if(!vc.width)return;
+  const W=vc.width,H=vc.height;
+  vctx.clearRect(0,0,W,H);
+  let useReal=false;
+  const td=new Uint8Array(128);
+  if(analyser&&isPlaying){analyser.getByteTimeDomainData(td);useReal=true;}
+  vctx.beginPath();
+  for(let x=0;x<W;x++){
+    let y;
+    if(useReal){const bi=Math.floor(x/W*td.length);y=(td[bi]/128-1)*H*.42+H/2;}
+    else{y=H/2+(Math.random()-.5)*2.5;}
+    if(x===0)vctx.moveTo(x,y);else vctx.lineTo(x,y);
+  }
+  vctx.strokeStyle='#00ff41cc';vctx.lineWidth=1.2;vctx.shadowColor='#00ff41';vctx.shadowBlur=3;vctx.stroke();vctx.shadowBlur=0;
+}
+
+// ─────────────────────────────────────────────
+// METERS
+// ─────────────────────────────────────────────
+let sigD=0.04;
+function updateMeters(){
+  sigD+=(targetSig-sigD)*.06+(Math.random()-.5)*.012;
+  sigD=Math.max(0,Math.min(1,sigD));
+  const snr=sigD>.15?sigD*.85+Math.random()*.1:Math.random()*.04;
+  document.getElementById('msig').style.width=(sigD*100)+'%';
+  document.getElementById('msnr').style.width=(snr*100)+'%';
+  const su=['S0','S1','S2','S3','S4','S5','S6','S7','S8','S9','S9+20','S9+40'];
+  document.getElementById('sv').textContent=su[Math.min(11,Math.floor(sigD*11))];
+  document.getElementById('snv').textContent=Math.round(snr*50)+' dB';
+}
+
+// ─────────────────────────────────────────────
+// LOG
+// ─────────────────────────────────────────────
+let logs=[];
+function addLog(msg,cls){
+  const t=new Date().toTimeString().slice(0,8)+'Z';
+  logs.unshift(`<div class="ll ${cls||''}">[${t}] ${msg}</div>`);
+  if(logs.length>60)logs.pop();
+  document.getElementById('log').innerHTML=logs.join('');
+}
+
+// ─────────────────────────────────────────────
+// CLOCK / SYSINFO
+// ─────────────────────────────────────────────
+const startT=Date.now();
+function updateClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    n.getUTCHours().toString().padStart(2,'0')+':'+
+    n.getUTCMinutes().toString().padStart(2,'0')+':'+
+    n.getUTCSeconds().toString().padStart(2,'0')+'Z';
+  const up=Math.floor((Date.now()-startT)/1000);
+  document.getElementById('upt').textContent=
+    Math.floor(up/3600).toString().padStart(2,'0')+':'+
+    Math.floor(up%3600/60).toString().padStart(2,'0')+':'+(up%60).toString().padStart(2,'0');
+  document.getElementById('tmp').textContent=Math.round(38+Math.random()*9)+'°C';
+  document.getElementById('cpu').textContent=Math.round(isPlaying?12+Math.random()*14:4+Math.random()*7)+'%';
+}
+
+// ─────────────────────────────────────────────
+// MAIN LOOP
+// ─────────────────────────────────────────────
+let fc=0,flt=Date.now(),lwt=0;
+function loop(ts){
+  genSpec();drawSpec();
+  if(ts-lwt>85){drawWat();lwt=ts;}
+  drawWave();updateMeters();
+  fc++;const n=Date.now();
+  if(n-flt>1000){document.getElementById('fps').textContent='FPS:'+fc;fc=0;flt=n;}
   requestAnimationFrame(loop);
 }
 
-// ── INIT ──
-populateStations();
-updateFreqDisplay();
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
 drawKnob();
 setInterval(updateClock,1000);
-addLog('SDR COCKPIT MKII — SYSTEM ONLINE','signal');
-addLog('HARDWARE: RTL2832U + R820T2 (SIMULATED)','');
-addLog('SAMPLE RATE: 2.4 MSPS — OK','');
-addLog('PPM CORRECTION: AUTO','');
-addLog('READY FOR INTERCEPT','event');
-
-setTimeout(()=>{ resizeCanvases(); requestAnimationFrame(loop); }, 200);
+addLog('SYSTEM ONLINE — MKII SDR COCKPIT','ls');
+addLog('CONNECTING TO RADIO BROWSER API...','le');
+fetchStations('FM');
+setTimeout(()=>{resize();requestAnimationFrame(loop);},250);
 </script>
 </body>
 </html>
